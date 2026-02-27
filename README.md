@@ -29,7 +29,6 @@ He thong ho tro 3 vai tro: khach hang, nhan vien, quan tri vien; bao gom mua han
    - `cd ../frontend && npm install`
 2. Tao file env tu `.env.example` cho ca backend va frontend.
 3. Chay MongoDB (co the dung Docker):
-   - `docker run -d --name mongodb -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=123456 mongo`
 4. Chay backend:
    - `cd backend && npm run dev`
 5. Chay frontend:
@@ -76,11 +75,3 @@ E-COMMERCE/
 
 ### Frontend
 - `REACT_APP_API_URL`
-
-## Screenshots
-Ban co the tao thu muc `docs/screenshots` va them anh:
-- `docs/screenshots/customer-home.png`
-- `docs/screenshots/customer-checkout.png`
-- `docs/screenshots/admin-dashboard.png`
-- `docs/screenshots/admin-users.png`
-- `docs/screenshots/staff-products.png`
