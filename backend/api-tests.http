@@ -1,0 +1,299 @@
+### E-Commerce API Tests
+### Sử dụng với VS Code REST Client extension
+
+@baseUrl = http://localhost:5000/api
+@token = YOUR_TOKEN_HERE
+
+### ============================================
+### 0. AUTHENTICATION
+### ============================================
+
+### Đăng ký Customer
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Customer Test",
+  "email": "customer@test.com",
+  "password": "123456",
+  "phone": "0901234567"
+}
+
+### Đăng nhập Customer
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "customer@test.com",
+  "password": "123456"
+}
+
+### Đăng ký Admin (đổi role trong DB sau)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin User",
+  "email": "admin@test.com",
+  "password": "admin123",
+  "phone": "0909999999"
+}
+
+### Đăng nhập Admin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin123"
+}
+
+### Lấy thông tin user hiện tại
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### ============================================
+### 1. CATEGORIES (Public GET, Staff/Admin CUD)
+### ============================================
+
+### Lấy tất cả Categories (Public)
+GET {{baseUrl}}/categories
+
+### Tạo Category - Điện thoại (Staff/Admin)
+POST {{baseUrl}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Điện thoại",
+  "description": "Smartphone các loại"
+}
+
+### Tạo Category - Laptop (Staff/Admin)
+POST {{baseUrl}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Laptop",
+  "description": "Máy tính xách tay"
+}
+
+### Tạo Category - Phụ kiện (Staff/Admin)
+POST {{baseUrl}}/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Phụ kiện",
+  "description": "Phụ kiện điện tử"
+}
+
+### ============================================
+### 2. PRODUCTS (Public GET, Staff/Admin CUD)
+### ============================================
+
+### Lấy tất cả Products (Public)
+GET {{baseUrl}}/products
+
+### Lấy Product theo ID (Public)
+GET {{baseUrl}}/products/1
+
+### Tạo Product - iPhone (Staff/Admin)
+POST {{baseUrl}}/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "iPhone 15 Pro Max",
+  "description": "Điện thoại Apple iPhone 15 Pro Max 256GB Titanium",
+  "price": 34990000,
+  "quantity": 50,
+  "categoryId": 1
+}
+
+### Tạo Product - Samsung (Staff/Admin)
+POST {{baseUrl}}/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Samsung Galaxy S24 Ultra",
+  "description": "Điện thoại Samsung Galaxy S24 Ultra 512GB",
+  "price": 31990000,
+  "quantity": 30,
+  "categoryId": 1
+}
+
+### Tạo Product - MacBook (Staff/Admin)
+POST {{baseUrl}}/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "MacBook Pro M3 Pro",
+  "description": "Laptop Apple MacBook Pro 14 inch M3 Pro chip 18GB RAM",
+  "price": 49990000,
+  "quantity": 20,
+  "categoryId": 2
+}
+
+### Cập nhật Product (Staff/Admin)
+PUT {{baseUrl}}/products/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "iPhone 15 Pro Max - SALE",
+  "price": 32990000
+}
+
+### Xóa Product (Staff/Admin)
+DELETE {{baseUrl}}/products/5
+Authorization: Bearer {{token}}
+
+### ============================================
+### 3. SEARCH (Public)
+### ============================================
+
+### Health Check OpenSearch
+GET {{baseUrl}}/search/health
+
+### Tìm kiếm - keyword (Public)
+GET {{baseUrl}}/search?q=iPhone
+
+### Tìm kiếm - tiếng Việt (Public)
+GET {{baseUrl}}/search?q=điện thoại
+
+### Gợi ý tìm kiếm (Public)
+GET {{baseUrl}}/search/suggest?q=iph
+
+### Init Index (Staff/Admin)
+POST {{baseUrl}}/search/init
+Authorization: Bearer {{token}}
+
+### Reindex tất cả products (Staff/Admin)
+POST {{baseUrl}}/search/reindex
+Authorization: Bearer {{token}}
+
+### ============================================
+### 4. CACHE (Staff/Admin)
+### ============================================
+
+### Health Check Redis
+GET {{baseUrl}}/cache/health
+
+### Xem thống kê Cache (Staff/Admin)
+GET {{baseUrl}}/cache/stats
+Authorization: Bearer {{token}}
+
+### Xóa tất cả cache products (Staff/Admin)
+DELETE {{baseUrl}}/cache/products
+Authorization: Bearer {{token}}
+
+### Xóa toàn bộ cache (Staff/Admin)
+DELETE {{baseUrl}}/cache/all
+Authorization: Bearer {{token}}
+
+### ============================================
+### 5. USER MANAGEMENT (Admin only)
+### ============================================
+
+### Lấy tất cả users (Admin)
+GET {{baseUrl}}/users
+Authorization: Bearer {{token}}
+
+### Lấy user theo ID (Admin)
+GET {{baseUrl}}/users/1
+Authorization: Bearer {{token}}
+
+### Tạo Staff account (Admin)
+POST {{baseUrl}}/users/staff
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Staff User",
+  "email": "staff@test.com",
+  "password": "staff123",
+  "phone": "0908888888"
+}
+
+### Cập nhật user role (Admin)
+PUT {{baseUrl}}/users/2
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "role": "staff"
+}
+
+### Deactivate user (Admin)
+DELETE {{baseUrl}}/users/3
+Authorization: Bearer {{token}}
+
+### ============================================
+### 6. ORDERS
+### ============================================
+
+### Tạo đơn hàng (Customer)
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "items": [
+    { "productId": 1, "quantity": 1 }
+  ],
+  "shippingAddress": "123 Nguyen Van Linh, Quan 7, TP HCM",
+  "paymentMethod": "cod",
+  "shippingFee": 30000,
+  "tax": 0
+}
+
+### Lấy danh sách đơn hàng của tôi (Customer)
+GET {{baseUrl}}/orders/my
+Authorization: Bearer {{token}}
+
+### Lấy chi tiết đơn hàng (Customer)
+GET {{baseUrl}}/orders/1
+Authorization: Bearer {{token}}
+
+### Hủy đơn hàng (Customer)
+PUT {{baseUrl}}/orders/1/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Đổi ý không muốn mua nữa"
+}
+
+### ============================================
+### 7. VNPAY PAYMENT
+### ============================================
+
+### Tạo URL thanh toán VNPay (Customer)
+POST {{baseUrl}}/payment/vnpay/create
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "orderId": 1
+}
+
+### Kiểm tra trạng thái thanh toán (Customer)
+GET {{baseUrl}}/payment/status/1
+Authorization: Bearer {{token}}
+
+### ============================================
+### 8. TEST FLOW
+### ============================================
+
+# 1. Đăng ký admin account
+# 2. Vào MySQL đổi role thành 'admin'
+# 3. Đăng nhập lấy token
+# 4. Copy token vào @token ở trên
+# 5. Tạo categories
+# 6. Tạo products
+# 7. Init search index
+# 8. Test search

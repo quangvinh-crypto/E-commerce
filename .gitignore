@@ -1,0 +1,15 @@
+# Environment and secrets
+.env
+*.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Docs not for remote
+*.md
