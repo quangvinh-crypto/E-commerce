@@ -13,3 +13,6 @@
 
 # Docs not for remote
 *.md
+!README.md
+!backend/README.md
+!frontend/README.md
