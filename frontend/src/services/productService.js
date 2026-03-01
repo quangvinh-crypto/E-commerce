@@ -1,9 +1,41 @@
 import api from './api';
 
+const buildProductFormData = (productData = {}) => {
+  const formData = new FormData();
+  const { primaryImage, detailImages, specifications, ...rest } = productData;
+
+  Object.entries(rest).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    formData.append(key, value);
+  });
+
+  if (specifications && Object.keys(specifications).length > 0) {
+    formData.append('specifications', JSON.stringify(specifications));
+  }
+
+  if (primaryImage instanceof File) {
+    formData.append('images', primaryImage);
+  }
+
+  if (Array.isArray(detailImages)) {
+    detailImages.forEach((file) => {
+      if (file instanceof File) {
+        formData.append('images', file);
+      }
+    });
+  }
+
+  return formData;
+};
+
 const productService = {
   // Get all products with filters
   getProducts: async (params = {}) => {
-    const response = await api.get('/products', { params });
+    const sanitizedParams = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+    );
+
+    const response = await api.get('/products', { params: sanitizedParams });
     return response.data;
   },
 
@@ -27,13 +59,23 @@ const productService = {
 
   // Create product (Staff/Admin only)
   createProduct: async (productData) => {
-    const response = await api.post('/products', productData);
+    const formData = buildProductFormData(productData);
+    const response = await api.post('/products', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 
   // Update product (Staff/Admin only)
   updateProduct: async (id, productData) => {
-    const response = await api.put(`/products/${id}`, productData);
+    const formData = buildProductFormData(productData);
+    const response = await api.put(`/products/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 

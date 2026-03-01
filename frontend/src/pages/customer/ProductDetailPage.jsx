@@ -50,13 +50,24 @@ const ProductDetailPage = () => {
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedImage, setSelectedImage] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [activeTab, setActiveTab] = useState('description');
 
   useEffect(() => {
     fetchProduct();
   }, [id]);
+
+  useEffect(() => {
+    if (!product) return;
+    const imageList =
+      product.images?.length > 0
+        ? product.images.map((img) => getImageUrl(img))
+        : product.image_url
+        ? [getImageUrl(product.image_url)]
+        : ['https://via.placeholder.com/600'];
+
+    setSelectedImage(imageList[0]);
+  }, [product]);
 
   const fetchProduct = async () => {
     try {
@@ -112,10 +123,14 @@ const ProductDetailPage = () => {
 
   const getSpecifications = () => {
     if (!product?.specifications) return null;
-    const specs = typeof product.specifications === 'string' 
-      ? JSON.parse(product.specifications) 
-      : product.specifications;
-    return specs;
+    if (typeof product.specifications === 'string') {
+      try {
+        return JSON.parse(product.specifications);
+      } catch (_) {
+        return {};
+      }
+    }
+    return product.specifications;
   };
 
   const formatPrice = (price) => {
@@ -151,6 +166,8 @@ const ProductDetailPage = () => {
       : product.image_url
       ? [getImageUrl(product.image_url)]
       : ['https://via.placeholder.com/600'];
+  const thumbnailImages = images.slice(0, 4);
+  const mainImage = selectedImage || images[0];
 
   const displayPrice = product.discount_price || product.price;
   const discountPercent = product.discount_price
@@ -180,22 +197,22 @@ const ProductDetailPage = () => {
           <div>
             <div className="bg-zinc-900 border border-gray-800 rounded-xl overflow-hidden mb-4">
               <img
-                src={images[selectedImage]}
+                src={mainImage}
                 alt={product.name}
                 className="w-full aspect-square object-cover"
               />
             </div>
-            {images.length > 1 && (
-              <div className="grid grid-cols-4 gap-4">
-                {images.map((img, i) => (
+            {thumbnailImages.length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {thumbnailImages.map((img, i) => (
                   <button
                     key={i}
-                    onClick={() => setSelectedImage(i)}
+                    onClick={() => setSelectedImage(img)}
                     className={`border-2 rounded-lg overflow-hidden transition-colors ${
-                      selectedImage === i ? 'border-amber-500' : 'border-gray-800 hover:border-gray-600'
+                      mainImage === img ? 'border-amber-500' : 'border-gray-800 hover:border-gray-600'
                     }`}
                   >
-                    <img src={img} alt={`${product.name} ${i + 1}`} className="w-full aspect-square object-cover" />
+                    <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-20 object-cover" />
                   </button>
                 ))}
               </div>
@@ -247,9 +264,6 @@ const ProductDetailPage = () => {
                 </div>
               </div>
             )}
-
-            {/* Description */}
-            <p className="text-gray-400 mb-6 line-clamp-3">{product.description}</p>
 
             {/* Stock */}
             <div className="mb-6">
@@ -322,76 +336,38 @@ const ProductDetailPage = () => {
           </div>
         </div>
 
-        {/* Tabs Section */}
-        <div className="bg-zinc-900 border border-gray-800 rounded-xl mb-12">
-          <div className="border-b border-gray-800">
-            <div className="flex gap-8 px-6">
-              {[
-                { id: 'description', label: 'Mô tả' },
-                { id: 'specifications', label: 'Thông số kỹ thuật' },
-                { id: 'reviews', label: 'Đánh giá' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-4 font-medium border-b-2 transition ${
-                    activeTab === tab.id
-                      ? 'border-amber-500 text-amber-500'
-                      : 'border-transparent text-gray-400 hover:text-gray-300'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+        {/* Product Content Section */}
+        <div className="space-y-6 mb-12">
+          <div className="bg-zinc-900 border border-gray-800 rounded-xl p-6">
+            <h2 className="text-xl font-bold text-gray-100 mb-3">Mô tả sản phẩm</h2>
+            <p className="text-gray-400 whitespace-pre-line">{product.description || 'Chưa có mô tả chi tiết.'}</p>
           </div>
 
-          <div className="p-6">
-            {/* Description Tab */}
-            {activeTab === 'description' && (
-              <div className="prose prose-invert max-w-none">
-                <p className="text-gray-400 whitespace-pre-line">{product.description || 'Chưa có mô tả chi tiết.'}</p>
+          <div className="bg-zinc-900 border border-gray-800 rounded-xl p-6">
+            <h2 className="text-xl font-bold text-gray-100 mb-4">Thông số kỹ thuật</h2>
+            {specifications && Object.keys(specifications).length > 0 ? (
+              <div className="overflow-hidden rounded-lg border border-gray-800">
+                <table className="w-full">
+                  <tbody>
+                    {Object.entries(specifications).map(([key, value], idx) => (
+                      <tr
+                        key={key}
+                        className={`${idx % 2 === 0 ? 'bg-zinc-800/50' : 'bg-zinc-900'} border-b border-gray-800 last:border-b-0`}
+                      >
+                        <td className="px-4 py-3 font-medium text-gray-300 w-1/3">
+                          <div className="flex items-center gap-2">
+                            {specIcons[key] && <span className="text-amber-500">{specIcons[key]}</span>}
+                            {specLabels[key] || key}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-100">{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-
-            {/* Specifications Tab */}
-            {activeTab === 'specifications' && (
-              <div>
-                {specifications && Object.keys(specifications).length > 0 ? (
-                  <div className="overflow-hidden rounded-lg border border-gray-800">
-                    <table className="w-full">
-                      <tbody>
-                        {Object.entries(specifications).map(([key, value], idx) => (
-                          <tr
-                            key={key}
-                            className={`${idx % 2 === 0 ? 'bg-zinc-800/50' : 'bg-zinc-900'} border-b border-gray-800 last:border-b-0`}
-                          >
-                            <td className="px-4 py-3 font-medium text-gray-300 w-1/3">
-                              <div className="flex items-center gap-2">
-                                {specIcons[key] && <span className="text-amber-500">{specIcons[key]}</span>}
-                                {specLabels[key] || key}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-gray-100">{value}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">Chưa có thông số kỹ thuật</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Reviews Tab */}
-            {activeTab === 'reviews' && (
-              <div className="text-center py-12 text-gray-500">
-                <p>Chưa có đánh giá nào cho sản phẩm này.</p>
-                <p className="text-sm mt-2">Hãy là người đầu tiên đánh giá!</p>
-              </div>
+            ) : (
+              <p className="text-gray-500">Chưa có thông số kỹ thuật</p>
             )}
           </div>
         </div>

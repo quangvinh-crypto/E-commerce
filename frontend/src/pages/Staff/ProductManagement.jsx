@@ -9,9 +9,11 @@ import toast from 'react-hot-toast';
 import productService from '../../services/productService';
 import categoryService from '../../services/categoryService';
 import { getImageUrl } from '../../utils/imageHelper';
+import { useAuth } from '../../contexts/AuthContext';
 
 const ProductManagement = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState('grid');
   const [filters, setFilters] = useState({
     categoryId: '',
@@ -26,6 +28,8 @@ const ProductManagement = () => {
     sortOrder: 'DESC',
   });
   const [selectedProducts, setSelectedProducts] = useState([]);
+
+  const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
 
   const { data, isLoading } = useQuery(
     ['products', filters],
@@ -106,6 +110,23 @@ const ProductManagement = () => {
     return { label: 'Còn hàng', color: 'bg-green-100 text-green-800', icon: <CheckCircle size={14} /> };
   };
 
+  const getVariantInfo = (product) => {
+    let specs = product.specifications || {};
+    if (typeof specs === 'string') {
+      try {
+        specs = JSON.parse(specs || '{}');
+      } catch (_) {
+        specs = {};
+      }
+    }
+
+    const ram = specs.ram ? `RAM ${specs.ram}` : null;
+    const storage = specs.storage ? `ROM ${specs.storage}` : null;
+
+    if (!ram && !storage) return 'Chưa có thông số RAM/ROM';
+    return [ram, storage].filter(Boolean).join(' • ');
+  };
+
   const products = data?.data || [];
   const pagination = data?.pagination || {};
   const categories = categoriesData?.data || [];
@@ -140,7 +161,7 @@ const ProductManagement = () => {
             <Download size={18} /> Xuất CSV
           </button>
           <Link
-            to="/staff/products/create"
+            to={`${managementBasePath}/products/create`}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg"
           >
             <Plus size={18} /> Thêm sản phẩm
@@ -293,7 +314,7 @@ const ProductManagement = () => {
           <Package size={64} className="mx-auto text-gray-300 mb-4" />
           <p className="text-gray-500 text-lg">Không tìm thấy sản phẩm nào</p>
           <Link
-            to="/staff/products/create"
+            to={`${managementBasePath}/products/create`}
             className="inline-flex items-center gap-2 mt-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg"
           >
             <Plus size={18} /> Thêm sản phẩm mới
@@ -331,6 +352,7 @@ const ProductManagement = () => {
                 </div>
                 <div className="p-4">
                   <h3 className="font-bold text-gray-800 mb-1 line-clamp-2">{product.name}</h3>
+                  <p className="text-sm text-gray-500 mb-1">{getVariantInfo(product)}</p>
                   <p className="text-sm text-gray-500 mb-2">{product.category?.name || 'Chưa phân loại'}</p>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-blue-600 font-bold">{formatPrice(product.price)}</span>
@@ -340,14 +362,13 @@ const ProductManagement = () => {
                   </div>
                   <div className="flex gap-2">
                     <Link
-                      to={`/products/${product.id}`}
-                      target="_blank"
+                      to={`${managementBasePath}/products/${product.id}`}
                       className="flex-1 flex items-center justify-center gap-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 text-sm"
                     >
                       <Eye size={16} /> Xem
                     </Link>
                     <Link
-                      to={`/staff/products/${product.id}/edit`}
+                      to={`${managementBasePath}/products/${product.id}/edit`}
                       className="flex-1 flex items-center justify-center gap-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
                     >
                       <Edit2 size={16} /> Sửa
@@ -411,7 +432,7 @@ const ProductManagement = () => {
                         </div>
                         <div>
                           <p className="font-medium text-gray-800 line-clamp-1">{product.name}</p>
-                          <p className="text-xs text-gray-500">ID: {product.id}</p>
+                          <p className="text-xs text-gray-500">{getVariantInfo(product)}</p>
                         </div>
                       </div>
                     </td>
@@ -430,15 +451,14 @@ const ProductManagement = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <Link
-                          to={`/products/${product.id}`}
-                          target="_blank"
+                          to={`${managementBasePath}/products/${product.id}`}
                           className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
                           title="Xem"
                         >
                           <Eye size={18} />
                         </Link>
                         <Link
-                          to={`/staff/products/${product.id}/edit`}
+                          to={`${managementBasePath}/products/${product.id}/edit`}
                           className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
                           title="Sửa"
                         >
