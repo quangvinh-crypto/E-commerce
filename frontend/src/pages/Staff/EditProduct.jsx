@@ -5,6 +5,7 @@ import { Plus, Trash2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import productService from '../../services/productService';
 import categoryService from '../../services/categoryService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const defaultSpecFields = [
   { key: 'brand', label: 'Thương hiệu', placeholder: 'Apple, Samsung, Xiaomi...' },
@@ -33,6 +34,7 @@ const EditProduct = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -45,6 +47,7 @@ const EditProduct = () => {
   const [customSpecs, setCustomSpecs] = useState([]);
   const [errors, setErrors] = useState({});
   const [showAllSpecs, setShowAllSpecs] = useState(false);
+  const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
 
   const { isLoading: isLoadingProduct } = useQuery(
     ['product', id],
@@ -87,7 +90,7 @@ const EditProduct = () => {
       },
       onError: () => {
         toast.error('Không tìm thấy product');
-        navigate('/staff/products');
+        navigate(`${managementBasePath}/products`);
       },
     }
   );
@@ -101,7 +104,7 @@ const EditProduct = () => {
         queryClient.invalidateQueries('products');
         queryClient.invalidateQueries(['product', id]);
         toast.success('Cập nhật product thành công');
-        navigate('/staff/products');
+        navigate(`${managementBasePath}/products`);
       },
       onError: (error) => {
         toast.error(error.response?.data?.message || 'Cập nhật product thất bại');
@@ -137,7 +140,7 @@ const EditProduct = () => {
       ...formData,
       price: parseFloat(formData.price),
       quantity: parseInt(formData.quantity) || 0,
-      categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
+      categoryId: formData.categoryId || null,
       specifications: Object.keys(filteredSpecs).length > 0 ? filteredSpecs : null,
     };
 
@@ -185,16 +188,17 @@ const EditProduct = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Chỉnh Sửa Product</h1>
+    <div className="p-4 md:p-6">
+      <div className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 md:p-6 shadow-sm">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Chỉnh Sửa Product</h1>
         <p className="text-gray-600 mt-2">Cập nhật thông tin sản phẩm #{id}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
+        <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-7">
           <form onSubmit={handleSubmit}>
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Thông tin cơ bản</h2>
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Thông tin cơ bản</h2>
 
             {/* Name */}
             <div className="mb-4">
@@ -265,7 +269,7 @@ const EditProduct = () => {
             </div>
 
             {/* Category */}
-            <div className="mb-4">
+            <div className="mb-0">
               <label className="block text-gray-700 font-semibold mb-2">Danh mục</label>
               <select
                 name="categoryId"
@@ -280,6 +284,7 @@ const EditProduct = () => {
                   </option>
                 ))}
               </select>
+            </div>
             </div>
 
             {/* Is Active */}
@@ -297,7 +302,7 @@ const EditProduct = () => {
             </div>
 
             {/* Specifications Section */}
-            <div className="border-t pt-6 mt-6">
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5">
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-xl font-semibold text-gray-800">Thông số kỹ thuật</h2>
                 <div className="group relative">
@@ -375,7 +380,7 @@ const EditProduct = () => {
             </div>
 
             {/* Buttons */}
-            <div className="flex gap-4 mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
               <button
                 type="submit"
                 disabled={updateProductMutation.isLoading}
@@ -385,7 +390,7 @@ const EditProduct = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/staff/products')}
+                onClick={() => navigate(`${managementBasePath}/products`)}
                 className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-lg transition"
               >
                 Hủy
@@ -395,8 +400,8 @@ const EditProduct = () => {
         </div>
 
         {/* Preview Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow p-6 sticky top-6">
+        <div className="xl:col-span-1">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6 sticky top-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Xem trước thông số</h3>
             {Object.keys(specifications).filter((k) => specifications[k]).length > 0 ||
             customSpecs.some((s) => s.key && s.value) ? (

@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 
 // Layouts
-import { AdminLayout, StaffLayout } from './components/layout';
+import { ManagementLayout } from './components/layout';
 
 // Common components
 import { ProtectedRoute, LoadingSpinner } from './components/common';
@@ -20,6 +20,7 @@ import {
   ProductManagement,
   CreateProduct,
   EditProduct,
+  ProductDetailManagement,
   CategoryManagement,
   CacheManagement,
   SearchIndexManagement,
@@ -93,7 +94,18 @@ function App() {
       )}
       <Routes>
         {/* Public routes */}
-        <Route path="/" element={<HomePage />} />
+        <Route
+          path="/"
+          element={
+            isAuthenticated && user?.role === 'admin' ? (
+              <Navigate to="/admin/dashboard" replace />
+            ) : isAuthenticated && user?.role === 'staff' ? (
+              <Navigate to="/staff/dashboard" replace />
+            ) : (
+              <HomePage />
+            )
+          }
+        />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
@@ -117,7 +129,7 @@ function App() {
           path="/admin"
           element={
             <ProtectedRoute requiredRole="admin">
-              <AdminLayout />
+              <ManagementLayout />
             </ProtectedRoute>
           }
         >
@@ -126,8 +138,14 @@ function App() {
           <Route path="users" element={<UserManagement />} />
           <Route path="staff/create" element={<CreateUser />} />
           <Route path="products" element={<ProductManagement />} />
+          <Route path="products/create" element={<CreateProduct />} />
+          <Route path="products/:id" element={<ProductDetailManagement />} />
+          <Route path="products/:id/edit" element={<EditProduct />} />
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="orders" element={<OrderManagement />} />
+          <Route path="inventory" element={<InventoryManagement />} />
+          <Route path="cache" element={<CacheManagement />} />
+          <Route path="search" element={<SearchIndexManagement />} />
           <Route path="reports" element={<div className="p-6">Báo cáo (Sắp ra mắt)</div>} />
           <Route path="settings" element={<div className="p-6">Cài đặt (Sắp ra mắt)</div>} />
         </Route>
@@ -137,7 +155,7 @@ function App() {
           path="/staff"
           element={
             <ProtectedRoute requiredRole={['staff', 'admin']}>
-              <StaffLayout />
+              <ManagementLayout />
             </ProtectedRoute>
           }
         >
@@ -145,6 +163,7 @@ function App() {
           <Route path="dashboard" element={<StaffDashboard />} />
           <Route path="products" element={<ProductManagement />} />
           <Route path="products/create" element={<CreateProduct />} />
+          <Route path="products/:id" element={<ProductDetailManagement />} />
           <Route path="products/:id/edit" element={<EditProduct />} />
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="orders" element={<StaffOrderManagement />} />

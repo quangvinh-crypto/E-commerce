@@ -5,6 +5,7 @@ import { Plus, Trash2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import productService from '../../services/productService';
 import categoryService from '../../services/categoryService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const defaultSpecFields = [
   { key: 'brand', label: 'Thương hiệu', placeholder: 'Apple, Samsung, Xiaomi...' },
@@ -30,6 +31,7 @@ const defaultSpecFields = [
 const CreateProduct = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -42,6 +44,10 @@ const CreateProduct = () => {
   const [customSpecs, setCustomSpecs] = useState([]);
   const [errors, setErrors] = useState({});
   const [showAllSpecs, setShowAllSpecs] = useState(false);
+  const [primaryImage, setPrimaryImage] = useState(null);
+  const [detailImages, setDetailImages] = useState([]);
+
+  const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
 
   const { data: categoriesData } = useQuery('categories', () => categoryService.getCategories());
 
@@ -51,7 +57,7 @@ const CreateProduct = () => {
       onSuccess: () => {
         queryClient.invalidateQueries('products');
         toast.success('Tạo product thành công');
-        navigate('/staff/products');
+        navigate(`${managementBasePath}/products`);
       },
       onError: (error) => {
         toast.error(error.response?.data?.message || 'Tạo product thất bại');
@@ -64,6 +70,7 @@ const CreateProduct = () => {
     if (!formData.name.trim()) newErrors.name = 'Tên sản phẩm không được để trống';
     if (!formData.price || formData.price <= 0) newErrors.price = 'Giá phải lớn hơn 0';
     if (formData.quantity < 0) newErrors.quantity = 'Số lượng không được âm';
+    if (!primaryImage) newErrors.primaryImage = 'Vui lòng chọn ảnh đại diện cho sản phẩm';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -87,8 +94,10 @@ const CreateProduct = () => {
       ...formData,
       price: parseFloat(formData.price),
       quantity: parseInt(formData.quantity) || 0,
-      categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
+      categoryId: formData.categoryId || null,
       specifications: Object.keys(filteredSpecs).length > 0 ? filteredSpecs : null,
+      primaryImage,
+      detailImages,
     };
 
     createProductMutation.mutate(productData);
@@ -126,18 +135,32 @@ const CreateProduct = () => {
   const categories = categoriesData?.data || [];
   const visibleSpecs = showAllSpecs ? defaultSpecFields : defaultSpecFields.slice(0, 8);
 
+  const handlePrimaryImageChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setPrimaryImage(file);
+    if (errors.primaryImage && file) {
+      setErrors((prev) => ({ ...prev, primaryImage: '' }));
+    }
+  };
+
+  const handleDetailImagesChange = (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 3);
+    setDetailImages(files);
+  };
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Tạo Product Mới</h1>
+    <div className="p-4 md:p-6">
+      <div className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 md:p-6 shadow-sm">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Tạo Product Mới</h1>
         <p className="text-gray-600 mt-2">Thêm sản phẩm mới vào hệ thống</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
         {/* Main Form */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
+        <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-7">
           <form onSubmit={handleSubmit}>
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Thông tin cơ bản</h2>
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Thông tin cơ bản</h2>
 
             {/* Name */}
             <div className="mb-4">
@@ -208,7 +231,7 @@ const CreateProduct = () => {
             </div>
 
             {/* Category */}
-            <div className="mb-4">
+            <div className="mb-0">
               <label className="block text-gray-700 font-semibold mb-2">Danh mục</label>
               <select
                 name="categoryId"
@@ -223,6 +246,58 @@ const CreateProduct = () => {
                   </option>
                 ))}
               </select>
+            </div>
+            </div>
+
+            {/* Product Images */}
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Hình ảnh sản phẩm</h2>
+
+              <div className="mb-4">
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Ảnh đại diện <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePrimaryImageChange}
+                  className={`w-full border rounded-lg px-4 py-2 bg-white ${errors.primaryImage ? 'border-red-500' : ''}`}
+                />
+                <p className="text-xs text-gray-500 mt-1">Ảnh này sẽ hiển thị trong danh sách sản phẩm</p>
+                {errors.primaryImage && <p className="text-red-500 text-sm mt-1">{errors.primaryImage}</p>}
+                {primaryImage && (
+                  <img
+                    src={URL.createObjectURL(primaryImage)}
+                    alt="Ảnh đại diện"
+                    className="mt-3 w-32 h-32 object-cover rounded-lg border"
+                  />
+                )}
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-gray-700 font-semibold mb-2">Ảnh chi tiết (tối đa 3 ảnh)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleDetailImagesChange}
+                  className="w-full border rounded-lg px-4 py-2 bg-white"
+                />
+                <p className="text-xs text-gray-500 mt-1">Các ảnh này sẽ hiển thị dạng thumbnail ở trang chi tiết sản phẩm</p>
+
+                {detailImages.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-3">
+                    {detailImages.map((file, idx) => (
+                      <img
+                        key={`${file.name}-${idx}`}
+                        src={URL.createObjectURL(file)}
+                        alt={`Ảnh chi tiết ${idx + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Is Active */}
@@ -240,7 +315,7 @@ const CreateProduct = () => {
             </div>
 
             {/* Specifications Section */}
-            <div className="border-t pt-6 mt-6">
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5">
               <div className="flex items-center gap-2 mb-4">
                 <h2 className="text-xl font-semibold text-gray-800">Thông số kỹ thuật</h2>
                 <div className="group relative">
@@ -318,7 +393,7 @@ const CreateProduct = () => {
             </div>
 
             {/* Buttons */}
-            <div className="flex gap-4 mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
               <button
                 type="submit"
                 disabled={createProductMutation.isLoading}
@@ -328,7 +403,7 @@ const CreateProduct = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/staff/products')}
+                onClick={() => navigate(`${managementBasePath}/products`)}
                 className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-lg transition"
               >
                 Hủy
@@ -338,8 +413,8 @@ const CreateProduct = () => {
         </div>
 
         {/* Preview Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow p-6 sticky top-6">
+        <div className="xl:col-span-1">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 md:p-6 sticky top-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Xem trước thông số</h3>
             {Object.keys(specifications).filter((k) => specifications[k]).length > 0 ||
             customSpecs.some((s) => s.key && s.value) ? (
