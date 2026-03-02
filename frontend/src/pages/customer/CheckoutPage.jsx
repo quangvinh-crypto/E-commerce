@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Wallet, Banknote } from 'lucide-react';
+import { Wallet, Banknote } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,6 +18,12 @@ const CheckoutPage = () => {
   const shippingFee = subtotal > 500000 ? 0 : 30000;
   const tax = subtotal * 0.1;
   const total = subtotal + shippingFee + tax;
+  const getItemId = (item) => item.id || item._id || item.productId || item.product_id;
+  const getItemUnitPrice = (item) => {
+    const discountPrice = Number(item.discount_price);
+    const price = Number(item.price);
+    return Number.isFinite(discountPrice) && discountPrice > 0 ? discountPrice : price;
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -33,6 +39,19 @@ const CheckoutPage = () => {
     if (!formData.agreeTerms) { toast.error('Vui lòng đồng ý với điều khoản'); return; }
     try {
       setLoading(true);
+      const orderItems = cart
+        .map((item) => ({
+          productId: getItemId(item),
+          quantity: item.quantity,
+        }))
+        .filter((item) => item.productId);
+
+      if (orderItems.length !== cart.length) {
+        toast.error('Một số sản phẩm trong giỏ hàng không hợp lệ, vui lòng cập nhật lại giỏ hàng');
+        setLoading(false);
+        return;
+      }
+
       const orderData = {
         shippingAddress: {
           name: formData.fullName,
@@ -43,10 +62,7 @@ const CheckoutPage = () => {
           email: formData.email,
         },
         paymentMethod: formData.paymentMethod,
-        items: cart.map(i => ({
-          productId: i.id,
-          quantity: i.quantity,
-        })),
+        items: orderItems,
         shippingFee,
         tax,
       };
@@ -55,7 +71,7 @@ const CheckoutPage = () => {
         if (formData.paymentMethod === 'vnpay') {
           const paymentRes = await paymentService.createVNPayPayment(res.data.id);
           if (paymentRes.success) {
-            clearCart();
+            sessionStorage.setItem('pending_vnpay_order_id', res.data.id);
             window.location.href = paymentRes.data.paymentUrl;
             return;
           } else {
@@ -104,21 +120,20 @@ const CheckoutPage = () => {
                 <div className="space-y-3">
                   <label className={`flex items-center p-4 border rounded-lg cursor-pointer ${formData.paymentMethod === 'cod' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700'}`}><input type="radio" name="paymentMethod" value="cod" checked={formData.paymentMethod === 'cod'} onChange={handleChange} className="text-amber-500" /><Wallet size={24} className="mx-4 text-gray-400" /><div><div className="font-medium text-gray-100">Thanh toán khi nhận hàng (COD)</div></div></label>
                   <label className={`flex items-center p-4 border rounded-lg cursor-pointer ${formData.paymentMethod === 'vnpay' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700'}`}><input type="radio" name="paymentMethod" value="vnpay" checked={formData.paymentMethod === 'vnpay'} onChange={handleChange} className="text-amber-500" /><Banknote size={24} className="mx-4 text-gray-400" /><div><div className="font-medium text-gray-100">Thanh toán qua VNPay</div><div className="text-sm text-gray-400">ATM, Visa, MasterCard, QR Code</div></div></label>
-                  <label className={`flex items-center p-4 border rounded-lg cursor-pointer ${formData.paymentMethod === 'credit_card' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700'}`}><input type="radio" name="paymentMethod" value="credit_card" checked={formData.paymentMethod === 'credit_card'} onChange={handleChange} className="text-amber-500" /><CreditCard size={24} className="mx-4 text-gray-400" /><div><div className="font-medium text-gray-100">Thẻ tín dụng / Ghi nợ</div></div></label>
                 </div>
               </div>
             </div>
             <div className="lg:col-span-1">
               <div className="bg-zinc-900 border border-gray-800 rounded-xl p-6 sticky top-24">
                 <h2 className="text-xl font-bold text-gray-100 mb-6">Đơn Hàng</h2>
-                <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">{cart.map((item) => <div key={item.id} className="flex gap-3"><img src={item.image_url || 'https://via.placeholder.com/60'} alt={item.name} className="w-16 h-16 object-cover rounded-lg" /><div className="flex-1"><p className="font-medium text-gray-100 line-clamp-1">{item.name}</p><p className="text-sm text-gray-400">x{item.quantity}</p><p className="text-amber-500">{((item.discount_price || item.price) * item.quantity).toLocaleString('vi-VN')}₫</p></div></div>)}</div>
+                <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">{cart.map((item) => <div key={getItemId(item)} className="flex gap-3"><img src={item.image_url || 'https://via.placeholder.com/60'} alt={item.name} className="w-16 h-16 object-cover rounded-lg" /><div className="flex-1"><p className="font-medium text-gray-100 line-clamp-1">{item.name}</p><p className="text-sm text-gray-400">x{item.quantity}</p><p className="text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</p></div></div>)}</div>
                 <div className="space-y-3 border-t border-gray-800 pt-4 mb-6">
                   <div className="flex justify-between text-gray-400"><span>Tạm tính:</span><span className="text-gray-300">{subtotal.toLocaleString('vi-VN')}₫</span></div>
                   <div className="flex justify-between text-gray-400"><span>Phí vận chuyển:</span><span>{shippingFee === 0 ? <span className="text-green-400">Miễn phí</span> : `${shippingFee.toLocaleString('vi-VN')}₫`}</span></div>
                   <div className="flex justify-between text-gray-400"><span>Thuế VAT:</span><span className="text-gray-300">{tax.toLocaleString('vi-VN')}₫</span></div>
                   <div className="border-t border-gray-800 pt-3 flex justify-between text-lg font-bold text-gray-100"><span>Tổng:</span><span className="text-amber-500">{total.toLocaleString('vi-VN')}₫</span></div>
                 </div>
-                <label className="flex items-start gap-2 mb-6 cursor-pointer"><input type="checkbox" name="agreeTerms" checked={formData.agreeTerms} onChange={handleChange} className="mt-1 text-amber-500 rounded" /><span className="text-sm text-gray-400">Tôi đồng ý với <a href="#" className="text-amber-500">điều khoản</a></span></label>
+                <label className="flex items-start gap-2 mb-6 cursor-pointer"><input type="checkbox" name="agreeTerms" checked={formData.agreeTerms} onChange={handleChange} className="mt-1 text-amber-500 rounded" /><span className="text-sm text-gray-400">Tôi đồng ý với <span className="text-amber-500">điều khoản</span></span></label>
                 <button type="submit" disabled={loading} className="w-full bg-amber-500 text-black py-4 rounded-full font-semibold hover:bg-amber-400 disabled:opacity-50">{loading ? 'Đang xử lý...' : 'Đặt Hàng'}</button>
               </div>
             </div>

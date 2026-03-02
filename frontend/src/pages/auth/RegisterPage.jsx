@@ -9,7 +9,7 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -26,7 +26,7 @@ const RegisterPage = () => {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.username.trim()) newErrors.username = 'Username không được để trống';
+    if (!formData.name.trim()) newErrors.name = 'Họ tên không được để trống';
     if (!formData.email.trim()) newErrors.email = 'Email không được để trống';
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email không hợp lệ';
     if (!formData.password) newErrors.password = 'Mật khẩu không được để trống';
@@ -42,7 +42,7 @@ const RegisterPage = () => {
     setIsLoading(true);
     try {
       await authService.register({
-        username: formData.username,
+        name: formData.name,
         email: formData.email,
         password: formData.password,
       });
@@ -70,13 +70,13 @@ const RegisterPage = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Username"
+            label="Họ tên"
             type="text"
-            name="username"
-            value={formData.username}
+            name="name"
+            value={formData.name}
             onChange={handleChange}
-            placeholder="username"
-            error={errors.username}
+            placeholder="Nguyen Van A"
+            error={errors.name}
           />
           <Input
             label="Email"
