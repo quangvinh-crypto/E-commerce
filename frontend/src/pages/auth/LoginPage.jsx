@@ -28,7 +28,11 @@ const LoginPage = () => {
     setIsLoading(true);
     try {
       const response = await login(formData.email, formData.password);
-      const userRole = response.data.user.role;
+      const loggedInUser = response.data.user;
+      const userRole = loggedInUser.role;
+      if (loggedInUser?.id) {
+        sessionStorage.setItem(`unverified_notice_dismissed_${loggedInUser.id}`, '1');
+      }
       toast.success('Đăng nhập thành công');
       if (redirect) {
         navigate(redirect);

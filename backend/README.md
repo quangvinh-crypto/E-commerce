@@ -74,14 +74,16 @@ Base URL: `/api`
 
 ### Orders
 - `POST /api/orders`
-- `GET /api/orders/my-orders`
+- `GET /api/orders/my`
 - `GET /api/orders/:id`
 - `PUT /api/orders/:id/cancel`
 - `GET /api/orders` (staff/admin)
 
 ### Payment
-- `POST /api/payment/create-vnpay`
-- `GET /api/payment/vnpay-return`
+- `POST /api/payment/vnpay/create`
+- `GET /api/payment/vnpay/return`
+- `GET /api/payment/vnpay/ipn`
+- `GET /api/payment/status/:orderId`
 
 ### Cache
 - `GET /api/cache/stats`
@@ -109,5 +111,5 @@ Base URL: `/api`
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
 - `OPENSEARCH_NODE`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-- `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_URL`, `VNPAY_RETURN_URL`
+- `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_BASE_URL`, `VNPAY_RETURN_URL`
 - `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_PASSWORD`, `ROOT_ADMIN_NAME`

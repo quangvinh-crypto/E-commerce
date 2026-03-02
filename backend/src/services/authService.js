@@ -24,6 +24,7 @@ class AuthService {
       password,
       phone,
       role: 'customer',
+      isVerified: true,
       isRootAdmin: false,
     });
 

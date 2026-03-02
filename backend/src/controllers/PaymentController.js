@@ -11,6 +11,13 @@ class PaymentController {
       const { orderId, bankCode } = req.body;
       const userId = req.user.id;
 
+      if (!VNPayService.hasRequiredConfig()) {
+        return res.status(500).json({
+          success: false,
+          message: 'VNPay is not configured. Please set VNPAY_* environment variables.',
+        });
+      }
+
       if (!orderId) {
         return res.status(400).json({
           success: false,
@@ -34,7 +41,22 @@ class PaymentController {
         });
       }
 
-      const ipAddr = req.headers['x-forwarded-for'] ||
+      if (order.paymentMethod !== 'vnpay') {
+        return res.status(400).json({
+          success: false,
+          message: 'Order payment method is not VNPay',
+        });
+      }
+
+      if (['cancelled', 'refunded'].includes(order.status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot create payment for this order status',
+        });
+      }
+
+      const forwardedFor = req.headers['x-forwarded-for'];
+      const ipAddr = (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : forwardedFor) ||
         req.connection?.remoteAddress ||
         req.socket?.remoteAddress ||
         '127.0.0.1';
@@ -95,18 +117,31 @@ class PaymentController {
         );
       }
 
+      const orderAmount = Number(order.total);
+      if (Math.round(orderAmount * 100) !== Math.round(amount * 100)) {
+        return res.redirect(
+          `${frontendUrl}/checkout/result?status=failed&orderId=${order.id}&message=${encodeURIComponent('Invalid amount')}`
+        );
+      }
+
+      if (order.paymentStatus === 'paid') {
+        return res.redirect(
+          `${frontendUrl}/checkout/result?status=success&orderId=${order.id}&orderNumber=${order.orderNumber}`
+        );
+      }
+
       if (responseCode === '00') {
         order.paymentStatus = 'paid';
         order.paidAt = new Date();
         order.status = 'confirmed';
         order.transactionId = transactionNo;
-        order.paymentDetails = JSON.stringify({
+        order.paymentDetails = {
           bankCode,
           transactionNo,
           amount,
           responseCode,
           paymentMethod: 'vnpay',
-        });
+        };
         await order.save();
 
         return res.redirect(
@@ -115,14 +150,14 @@ class PaymentController {
       } else {
         const message = VNPayService.getResponseCode(responseCode);
         order.paymentStatus = 'failed';
-        order.paymentDetails = JSON.stringify({
+        order.paymentDetails = {
           bankCode,
           transactionNo,
           amount,
           responseCode,
           message,
           paymentMethod: 'vnpay',
-        });
+        };
         await order.save();
 
         return res.redirect(
@@ -162,7 +197,7 @@ class PaymentController {
         return res.status(200).json({ RspCode: '01', Message: 'Order not found' });
       }
 
-      if (parseFloat(order.total) !== amount) {
+      if (Math.round(Number(order.total) * 100) !== Math.round(amount * 100)) {
         return res.status(200).json({ RspCode: '04', Message: 'Invalid Amount' });
       }
 
@@ -175,11 +210,26 @@ class PaymentController {
         order.paidAt = new Date();
         order.status = 'confirmed';
         order.transactionId = transactionNo;
+        order.paymentDetails = {
+          transactionNo,
+          amount,
+          responseCode,
+          paymentMethod: 'vnpay',
+          source: 'ipn',
+        };
         await order.save();
 
         return res.status(200).json({ RspCode: '00', Message: 'Confirm Success' });
       } else {
         order.paymentStatus = 'failed';
+        order.paymentDetails = {
+          transactionNo,
+          amount,
+          responseCode,
+          message: VNPayService.getResponseCode(responseCode),
+          paymentMethod: 'vnpay',
+          source: 'ipn',
+        };
         await order.save();
 
         return res.status(200).json({ RspCode: '00', Message: 'Confirm Success' });

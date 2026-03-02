@@ -12,6 +12,10 @@ class VNPayService {
     this.locale = process.env.VNPAY_LOCALE || 'vn';
   }
 
+  hasRequiredConfig() {
+    return Boolean(this.tmnCode && this.hashSecret && this.baseUrl && this.returnUrl);
+  }
+
   sortObject(obj) {
     const sorted = {};
     const keys = Object.keys(obj).sort();

@@ -20,13 +20,9 @@ const registerValidator = [
     .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
 
   body('role')
-    .optional()
-    .custom((value) => {
-      if (value && value !== 'customer') {
-        throw new Error('Public register only allows customer account');
-      }
-      return true;
-    }),
+    .not()
+    .exists()
+    .withMessage('role is not allowed in register request'),
 
   body('isRootAdmin')
     .not()
