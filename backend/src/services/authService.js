@@ -2,6 +2,10 @@ const jwt = require('jsonwebtoken');
 const userRepository = require('../repositories/userRepository');
 
 class AuthService {
+  normalizeRole(role) {
+    return String(role || '').trim().toLowerCase();
+  }
+
   generateToken(id) {
     return jwt.sign({ id }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRE || '7d',
@@ -36,7 +40,7 @@ class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: this.normalizeRole(user.role),
         avatar: user.avatar,
         isVerified: user.isVerified,
         isActive: user.isActive,
@@ -75,7 +79,7 @@ class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: this.normalizeRole(user.role),
         avatar: user.avatar,
         isVerified: user.isVerified,
         isActive: user.isActive,
@@ -97,7 +101,7 @@ class AuthService {
       email: user.email,
       phone: user.phone,
       avatar: user.avatar,
-      role: user.role,
+      role: this.normalizeRole(user.role),
       isActive: user.isActive,
       isVerified: user.isVerified,
       isRootAdmin: user.isRootAdmin,
@@ -127,7 +131,7 @@ class AuthService {
       email: user.email,
       phone: user.phone,
       avatar: user.avatar,
-      role: user.role,
+      role: this.normalizeRole(user.role),
     };
   }
 
@@ -166,7 +170,7 @@ class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: this.normalizeRole(user.role),
         avatar: user.avatar,
         isVerified: user.isVerified,
         isActive: user.isActive,

@@ -74,7 +74,7 @@ function App() {
 
   return (
     <div className="App">
-      {isAuthenticated && user?.isVerified === false && !hideUnverifiedNotice && (
+      {isAuthenticated && user?.role === 'customer' && user?.isVerified === false && !hideUnverifiedNotice && (
         <div className="fixed top-0 inset-x-0 z-[80] px-4 pt-3">
           <div className="max-w-5xl mx-auto bg-amber-50 border border-amber-300 text-amber-900 rounded-lg shadow-md px-4 py-3 flex items-start gap-3">
             <div className="mt-0.5">⚠</div>

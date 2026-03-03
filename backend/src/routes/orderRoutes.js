@@ -49,10 +49,10 @@ const updateStatusValidation = [
     .isIn(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'])
     .withMessage('Invalid status'),
   body('trackingNumber')
-    .optional()
+    .optional({ nullable: true })
     .isString(),
   body('shippingCarrier')
-    .optional()
+    .optional({ nullable: true })
     .isString(),
   validate,
 ];
