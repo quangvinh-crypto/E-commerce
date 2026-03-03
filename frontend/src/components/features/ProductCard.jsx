@@ -45,11 +45,18 @@ const ProductCard = ({ product }) => {
     : 0;
 
   const displayPrice = product.discount_price || product.price;
-
-  const truncateDescription = (desc, maxLength = 60) => {
-    if (!desc) return '';
-    return desc.length > maxLength ? desc.substring(0, maxLength) + '...' : desc;
-  };
+  const specs =
+    typeof product.specifications === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(product.specifications);
+          } catch (_) {
+            return {};
+          }
+        })()
+      : product.specifications || {};
+  const ram = specs.ram || specs.memory || '';
+  const rom = specs.storage || specs.rom || '';
 
   return (
     <Link
@@ -102,9 +109,11 @@ const ProductCard = ({ product }) => {
         <h3 className="text-lg font-semibold text-gray-100 mb-3 line-clamp-2 min-h-[3.5rem]">
           {product.name}
         </h3>
-        <p className="text-sm text-gray-400 mb-4 line-clamp-1 h-[1.5rem] flex items-center">
-          {truncateDescription(product.description, 60)}
-        </p>
+        <div className="text-sm text-gray-400 mb-4 h-[1.5rem] flex items-center gap-2">
+          <span>{ram ? `RAM ${ram}` : 'RAM -'}</span>
+          <span className="text-gray-600">|</span>
+          <span>{rom ? `ROM ${rom}` : 'ROM -'}</span>
+        </div>
         <div className="flex items-center gap-2 mb-4 mt-auto">
           <span className="text-2xl font-bold text-amber-500">
             {displayPrice.toLocaleString('vi-VN')}₫
