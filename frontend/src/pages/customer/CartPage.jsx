@@ -3,6 +3,7 @@ import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { getImageUrl } from '../../utils/imageHelper';
 import toast from 'react-hot-toast';
 
 const CartPage = () => {
@@ -14,6 +15,15 @@ const CartPage = () => {
     const discountPrice = Number(item.discount_price);
     const price = Number(item.price);
     return Number.isFinite(discountPrice) && discountPrice > 0 ? discountPrice : price;
+  };
+  const getCartItemImage = (item) => {
+    if (item.images?.length > 0) {
+      return getImageUrl(item.images[0], 'https://via.placeholder.com/100?text=No+Image');
+    }
+    if (item.image_url) {
+      return getImageUrl(item.image_url, 'https://via.placeholder.com/100?text=No+Image');
+    }
+    return 'https://via.placeholder.com/100?text=No+Image';
   };
   const subtotal = getCartTotal();
   const shippingFee = subtotal > 500000 ? 0 : 30000;
@@ -52,7 +62,7 @@ const CartPage = () => {
                 {cart.map((item) => (
                   <div key={getItemId(item)} className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                      <div className="md:col-span-6 flex gap-4"><img src={item.image_url || 'https://via.placeholder.com/100'} alt={item.name} className="w-20 h-20 object-cover rounded-lg" /><div className="flex-1"><Link to={`/products/${getItemId(item)}`} className="font-medium text-gray-100 hover:text-amber-500 line-clamp-2">{item.name}</Link><p className="text-sm text-gray-500 mt-1">{item.category_name}</p></div></div>
+                      <div className="md:col-span-6 flex gap-4"><img src={getCartItemImage(item)} alt={item.name} className="w-20 h-20 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://via.placeholder.com/100?text=No+Image'; }} /><div className="flex-1"><Link to={`/products/${getItemId(item)}`} className="font-medium text-gray-100 hover:text-amber-500 line-clamp-2">{item.name}</Link><p className="text-sm text-gray-500 mt-1">{item.category_name}</p></div></div>
                       <div className="md:col-span-2 text-center"><span className="font-medium text-gray-300">{getItemUnitPrice(item).toLocaleString('vi-VN')}₫</span></div>
                       <div className="md:col-span-2 flex justify-center">
                         <div className="flex items-center bg-zinc-800 border border-gray-700 rounded-lg">

@@ -6,6 +6,7 @@ import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import orderService from '../../services/orderService';
 import paymentService from '../../services/paymentService';
+import { getImageUrl } from '../../utils/imageHelper';
 import toast from 'react-hot-toast';
 
 const CheckoutPage = () => {
@@ -23,6 +24,15 @@ const CheckoutPage = () => {
     const discountPrice = Number(item.discount_price);
     const price = Number(item.price);
     return Number.isFinite(discountPrice) && discountPrice > 0 ? discountPrice : price;
+  };
+  const getCartItemImage = (item) => {
+    if (item.images?.length > 0) {
+      return getImageUrl(item.images[0], 'https://via.placeholder.com/60?text=No+Image');
+    }
+    if (item.image_url) {
+      return getImageUrl(item.image_url, 'https://via.placeholder.com/60?text=No+Image');
+    }
+    return 'https://via.placeholder.com/60?text=No+Image';
   };
 
   useEffect(() => {
@@ -126,7 +136,7 @@ const CheckoutPage = () => {
             <div className="lg:col-span-1">
               <div className="bg-zinc-900 border border-gray-800 rounded-xl p-6 sticky top-24">
                 <h2 className="text-xl font-bold text-gray-100 mb-6">Đơn Hàng</h2>
-                <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">{cart.map((item) => <div key={getItemId(item)} className="flex gap-3"><img src={item.image_url || 'https://via.placeholder.com/60'} alt={item.name} className="w-16 h-16 object-cover rounded-lg" /><div className="flex-1"><p className="font-medium text-gray-100 line-clamp-1">{item.name}</p><p className="text-sm text-gray-400">x{item.quantity}</p><p className="text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</p></div></div>)}</div>
+                <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">{cart.map((item) => <div key={getItemId(item)} className="flex gap-3"><img src={getCartItemImage(item)} alt={item.name} className="w-16 h-16 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://via.placeholder.com/60?text=No+Image'; }} /><div className="flex-1"><p className="font-medium text-gray-100 line-clamp-1">{item.name}</p><p className="text-sm text-gray-400">x{item.quantity}</p><p className="text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</p></div></div>)}</div>
                 <div className="space-y-3 border-t border-gray-800 pt-4 mb-6">
                   <div className="flex justify-between text-gray-400"><span>Tạm tính:</span><span className="text-gray-300">{subtotal.toLocaleString('vi-VN')}₫</span></div>
                   <div className="flex justify-between text-gray-400"><span>Phí vận chuyển:</span><span>{shippingFee === 0 ? <span className="text-green-400">Miễn phí</span> : `${shippingFee.toLocaleString('vi-VN')}₫`}</span></div>

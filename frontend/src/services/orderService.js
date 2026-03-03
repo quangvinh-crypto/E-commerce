@@ -33,11 +33,17 @@ const orderService = {
 
   // Update order status (Staff/Admin only)
   updateOrderStatus: async (id, status, trackingNumber = null, shippingCarrier = null) => {
-    const response = await api.put(`/orders/${id}/status`, {
-      status,
-      trackingNumber,
-      shippingCarrier,
-    });
+    const payload = { status };
+
+    if (typeof trackingNumber === 'string' && trackingNumber.trim()) {
+      payload.trackingNumber = trackingNumber.trim();
+    }
+
+    if (typeof shippingCarrier === 'string' && shippingCarrier.trim()) {
+      payload.shippingCarrier = shippingCarrier.trim();
+    }
+
+    const response = await api.put(`/orders/${id}/status`, payload);
     return response.data;
   },
 };

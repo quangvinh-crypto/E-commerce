@@ -37,7 +37,7 @@ const OrderManagement = () => {
       fetchOrders();
       setSelectedOrder(null);
     } catch (error) {
-      toast.error('Không thể cập nhật trạng thái');
+      toast.error(error.response?.data?.message || 'Không thể cập nhật trạng thái');
     }
   };
 

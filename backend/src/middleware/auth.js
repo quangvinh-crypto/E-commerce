@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const normalizeRole = (role) => String(role || '').trim().toLowerCase();
+
 /**
  * ROLE PERMISSIONS:
  * - customer: Xem sản phẩm, đặt hàng, quản lý đơn hàng của mình
@@ -38,6 +40,7 @@ const auth = async (req, res, next) => {
     }
 
     req.user = user;
+    req.user.role = normalizeRole(req.user.role);
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -56,8 +59,9 @@ const auth = async (req, res, next) => {
 
 // Authorize by role(s)
 const authorize = (...roles) => {
+  const normalizedRoles = roles.map((role) => normalizeRole(role));
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!normalizedRoles.includes(normalizeRole(req.user.role))) {
       return res.status(403).json({
         success: false,
         message: `Role '${req.user.role}' is not authorized to access this route`,
@@ -81,6 +85,7 @@ const optionalAuth = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id);
       if (user && user.isActive) {
+        user.role = normalizeRole(user.role);
         req.user = user;
       }
     }

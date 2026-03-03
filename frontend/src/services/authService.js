@@ -1,12 +1,24 @@
 import api from './api';
 
+const normalizeRole = (role) => String(role || '').trim().toLowerCase();
+
+const normalizeUser = (user) => {
+  if (!user || typeof user !== 'object') return user;
+  return {
+    ...user,
+    role: normalizeRole(user.role),
+  };
+};
+
 const authService = {
   // Register new user
   register: async (userData) => {
     const response = await api.post('/auth/register', userData);
     if (response.data.success && response.data.data.token) {
+      const normalizedUser = normalizeUser(response.data.data.user);
       localStorage.setItem('token', response.data.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      response.data.data.user = normalizedUser;
     }
     return response.data;
   },
@@ -15,8 +27,10 @@ const authService = {
   login: async (credentials) => {
     const response = await api.post('/auth/login', credentials);
     if (response.data.success && response.data.data.token) {
+      const normalizedUser = normalizeUser(response.data.data.user);
       localStorage.setItem('token', response.data.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      response.data.data.user = normalizedUser;
     }
     return response.data;
   },
@@ -52,7 +66,7 @@ const authService = {
   // Get stored user
   getStoredUser: () => {
     const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    return user ? normalizeUser(JSON.parse(user)) : null;
   },
 
   // Get stored token
