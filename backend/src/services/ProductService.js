@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { Product, Category } = require('../models');
+const { Product, Category, Review } = require('../models');
 const { deleteImage } = require('../config/cloudinary');
 const SearchService = require('./SearchService');
 
@@ -139,6 +139,8 @@ class ProductService {
     if (product.images?.length > 0) {
       await Promise.all(product.images.map((img) => img.publicId && deleteImage(img.publicId).catch(() => {})));
     }
+
+    await Review.deleteMany({ productId: product.id });
 
     await product.deleteOne();
 

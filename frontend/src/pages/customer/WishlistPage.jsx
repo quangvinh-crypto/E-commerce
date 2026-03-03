@@ -4,6 +4,7 @@ import { Heart, Trash2, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { getImageUrl } from '../../utils/imageHelper';
 import productService from '../../services/productService';
 import wishlistService from '../../services/wishlistService';
@@ -11,6 +12,7 @@ import toast from 'react-hot-toast';
 
 const WishlistPage = () => {
   const { wishlist, removeFromWishlist, clearWishlist, loadWishlist } = useWishlist();
+  const { user } = useAuth();
   const { addToCart } = useCart();
   const [removing, setRemoving] = useState(null);
   const [isHydratingImages, setIsHydratingImages] = useState(false);
@@ -78,13 +80,13 @@ const WishlistPage = () => {
         await Promise.all(
           missingImageItems.map(async (item) => {
             try {
-              const response = await productService.getProductById(item.id);
-              const product = response?.data;
-              if (product) {
-                wishlistService.upsertWishlistItem(product);
-              }
-            } catch (_) {
-              // Skip broken products in wishlist hydration
+                const response = await productService.getProductById(item.id);
+                const product = response?.data;
+                if (product) {
+                  wishlistService.upsertWishlistItem(product, user?.id || 'guest');
+                }
+              } catch (_) {
+                // Skip broken products in wishlist hydration
             }
           })
         );
@@ -104,7 +106,7 @@ const WishlistPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [wishlist, isHydratingImages, loadWishlist]);
+  }, [wishlist, isHydratingImages, loadWishlist, user?.id]);
 
   return (
     <CustomerLayout>

@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -24,6 +25,7 @@ const adminMenuItems = [
   { path: '/admin/products', label: 'Sản phẩm', icon: Package },
   { path: '/admin/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+  { path: '/admin/reviews', label: 'Bình luận', icon: MessageSquare },
   { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes },
   { path: '/admin/reports', label: 'Báo cáo', icon: BarChart3 },
   { path: '/admin/settings', label: 'Cài đặt', icon: Settings },
@@ -35,6 +37,7 @@ const staffMenuItems = [
   { path: '/staff/products/create', label: 'Thêm sản phẩm', icon: PlusSquare },
   { path: '/staff/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/staff/orders', label: 'Đơn hàng', icon: ShoppingCart },
+  { path: '/staff/reviews', label: 'Bình luận', icon: MessageSquare },
   { path: '/staff/inventory', label: 'Tồn kho', icon: Boxes },
 ];
 

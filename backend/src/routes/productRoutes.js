@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const ProductController = require('../controllers/ProductController');
+const ReviewController = require('../controllers/ReviewController');
 const { uploadMultiple, handleMulterError } = require('../middleware/upload');
-const { auth, isStaff } = require('../middleware/auth');
+const { auth, isStaff, isCustomer } = require('../middleware/auth');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
+const { upsertReviewValidation } = require('./reviewRoutes');
 
 // Validation middleware
 const createProductValidation = [
@@ -62,6 +64,8 @@ const idParamValidation = [
 // ============================================
 router.get('/', ProductController.getAllProducts);
 router.get('/:id', idParamValidation, ProductController.getProductById);
+router.get('/:id/reviews', idParamValidation, ReviewController.getProductReviews);
+router.post('/:id/reviews', auth, isCustomer, idParamValidation, upsertReviewValidation, ReviewController.createProductReview);
 
 // ============================================
 // STAFF & ADMIN ROUTES - Quản lý sản phẩm
