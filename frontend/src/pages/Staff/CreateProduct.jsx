@@ -87,7 +87,10 @@ const CreateProduct = () => {
     });
 
     const filteredSpecs = Object.fromEntries(
-      Object.entries(allSpecs).filter(([_, v]) => v && v.trim())
+      Object.entries(allSpecs).filter(([_, v]) => {
+        if (v === undefined || v === null) return false;
+        return String(v).trim() !== '';
+      })
     );
 
     const productData = {

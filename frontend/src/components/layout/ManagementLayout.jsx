@@ -11,8 +11,6 @@ import {
   BarChart3,
   Settings,
   Boxes,
-  Database,
-  Search,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -27,8 +25,6 @@ const adminMenuItems = [
   { path: '/admin/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes },
-  { path: '/admin/cache', label: 'Bộ nhớ đệm', icon: Database },
-  { path: '/admin/search', label: 'Chỉ mục tìm kiếm', icon: Search },
   { path: '/admin/reports', label: 'Báo cáo', icon: BarChart3 },
   { path: '/admin/settings', label: 'Cài đặt', icon: Settings },
 ];

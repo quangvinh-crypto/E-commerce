@@ -6,7 +6,6 @@ const passport = require('passport');
 require('dotenv').config();
 
 const { connectDB, mongoose } = require('./config/database');
-const { connectRedis } = require('./config/redis');
 const { connectElasticsearch } = require('./config/elasticsearch');
 const errorHandler = require('./middleware/errorHandler');
 const routes = require('./routes');
@@ -85,10 +84,8 @@ const PORT = process.env.PORT || 5000;
 const gracefulShutdown = async (signal) => {
   console.log(`\n${signal} received. Shutting down gracefully...`);
   
-  const { disconnectRedis } = require('./config/redis');
   const { disconnectElasticsearch } = require('./config/elasticsearch');
   
-  await disconnectRedis();
   await disconnectElasticsearch();
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
@@ -106,9 +103,6 @@ const startServer = async () => {
     const SeedService = require('./services/SeedService');
     await SeedService.ensureRootAdmin();
 
-    // Connect to Redis (non-blocking)
-    await connectRedis();
-
     // Connect to OpenSearch
     const esConnected = await connectElasticsearch();
     
@@ -116,6 +110,7 @@ const startServer = async () => {
     if (esConnected) {
       const SearchService = require('./services/SearchService');
       await SearchService.initIndex();
+      await SearchService.bulkIndexProducts();
     }
 
     const server = app.listen(PORT, () => {

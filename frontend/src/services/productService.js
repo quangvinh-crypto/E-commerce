@@ -84,6 +84,12 @@ const productService = {
     const response = await api.delete(`/products/${id}`);
     return response.data;
   },
+
+  // Delete single product image (Staff/Admin only)
+  deleteProductImage: async (id, publicId) => {
+    const response = await api.delete(`/products/${id}/images/${encodeURIComponent(publicId)}`);
+    return response.data;
+  },
 };
 
 export default productService;

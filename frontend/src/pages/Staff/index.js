@@ -4,7 +4,5 @@ export { default as CreateProduct } from './CreateProduct';
 export { default as EditProduct } from './EditProduct';
 export { default as ProductDetailManagement } from './ProductDetailManagement';
 export { default as CategoryManagement } from './CategoryManagement';
-export { default as CacheManagement } from './CacheManagement';
-export { default as SearchIndexManagement } from './SearchIndexManagement';
 export { default as StaffOrderManagement } from './StaffOrderManagement';
 export { default as InventoryManagement } from './InventoryManagement';

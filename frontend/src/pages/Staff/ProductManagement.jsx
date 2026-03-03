@@ -33,7 +33,21 @@ const ProductManagement = () => {
 
   const { data, isLoading } = useQuery(
     ['products', filters],
-    () => productService.getProducts(filters),
+    async () => {
+      if (filters.search?.trim()) {
+        return productService.searchProducts(filters.search, {
+          page: filters.page,
+          limit: filters.limit,
+          sortBy: filters.sortBy === 'createdAt' ? '_score' : filters.sortBy,
+          sortOrder: filters.sortBy === 'createdAt' ? 'desc' : filters.sortOrder,
+          categoryId: filters.categoryId || undefined,
+          minPrice: filters.minPrice || undefined,
+          maxPrice: filters.maxPrice || undefined,
+          isActive: filters.isActive === '' ? undefined : filters.isActive,
+        });
+      }
+      return productService.getProducts(filters);
+    },
     { keepPreviousData: true }
   );
 

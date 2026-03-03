@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, Info } from 'lucide-react';
@@ -47,53 +47,69 @@ const EditProduct = () => {
   const [customSpecs, setCustomSpecs] = useState([]);
   const [errors, setErrors] = useState({});
   const [showAllSpecs, setShowAllSpecs] = useState(false);
+  const [existingImages, setExistingImages] = useState([]);
+  const [primaryImage, setPrimaryImage] = useState(null);
+  const [detailImages, setDetailImages] = useState([]);
   const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
 
-  const { isLoading: isLoadingProduct } = useQuery(
+  const { data: productData, isLoading: isLoadingProduct } = useQuery(
     ['product', id],
     () => productService.getProductById(id),
     {
-      onSuccess: (data) => {
-        const product = data.data;
-        setFormData({
-          name: product.name || '',
-          description: product.description || '',
-          price: product.price || '',
-          quantity: product.quantity || '',
-          categoryId: product.categoryId || '',
-          isActive: product.isActive !== undefined ? product.isActive : true,
-        });
-
-        if (product.specifications) {
-          const specs = typeof product.specifications === 'string' 
-            ? JSON.parse(product.specifications) 
-            : product.specifications;
-          
-          const defaultSpecs = {};
-          const customSpecsList = [];
-
-          Object.entries(specs).forEach(([key, value]) => {
-            if (defaultSpecKeys.includes(key)) {
-              defaultSpecs[key] = value;
-            } else {
-              customSpecsList.push({ key, value });
-            }
-          });
-
-          setSpecifications(defaultSpecs);
-          setCustomSpecs(customSpecsList);
-
-          if (Object.keys(specs).length > 8) {
-            setShowAllSpecs(true);
-          }
-        }
-      },
+      refetchOnMount: 'always',
       onError: () => {
         toast.error('Không tìm thấy product');
         navigate(`${managementBasePath}/products`);
       },
     }
   );
+
+  useEffect(() => {
+    if (!productData) return;
+
+    const product = productData.data;
+
+    setFormData({
+      name: product.name || '',
+      description: product.description || '',
+      price: product.price || '',
+      quantity: product.quantity || '',
+      categoryId: product.categoryId || '',
+      isActive: product.isActive ?? true,
+    });
+
+    let specs = {};
+    if (product.specifications) {
+      if (typeof product.specifications === 'string') {
+        try {
+          const parsed = JSON.parse(product.specifications);
+          specs = parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_) {
+          specs = {};
+        }
+      } else if (typeof product.specifications === 'object') {
+        specs = product.specifications;
+      }
+    }
+
+    const defaultSpecs = {};
+    const customSpecsList = [];
+
+    Object.entries(specs).forEach(([key, value]) => {
+      if (defaultSpecKeys.includes(key)) {
+        defaultSpecs[key] = value;
+      } else {
+        customSpecsList.push({ key, value });
+      }
+    });
+
+    setSpecifications(defaultSpecs);
+    setCustomSpecs(customSpecsList);
+    setShowAllSpecs(Object.keys(specs).length > 8);
+    setExistingImages(Array.isArray(product.images) ? product.images : []);
+    setPrimaryImage(null);
+    setDetailImages([]);
+  }, [productData]);
 
   const { data: categoriesData } = useQuery('categories', () => categoryService.getCategories());
 
@@ -104,10 +120,25 @@ const EditProduct = () => {
         queryClient.invalidateQueries('products');
         queryClient.invalidateQueries(['product', id]);
         toast.success('Cập nhật product thành công');
-        navigate(`${managementBasePath}/products`);
       },
       onError: (error) => {
         toast.error(error.response?.data?.message || 'Cập nhật product thất bại');
+      },
+    }
+  );
+
+  const deleteImageMutation = useMutation(
+    ({ productId, publicId }) => productService.deleteProductImage(productId, publicId),
+    {
+      onSuccess: (response) => {
+        const images = Array.isArray(response?.data?.images) ? response.data.images : [];
+        setExistingImages(images);
+        queryClient.invalidateQueries('products');
+        queryClient.invalidateQueries(['product', id]);
+        toast.success('Xóa ảnh thành công');
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Xóa ảnh thất bại');
       },
     }
   );
@@ -133,7 +164,10 @@ const EditProduct = () => {
     });
 
     const filteredSpecs = Object.fromEntries(
-      Object.entries(allSpecs).filter(([_, v]) => v && v.trim())
+      Object.entries(allSpecs).filter(([_, v]) => {
+        if (v === undefined || v === null) return false;
+        return String(v).trim() !== '';
+      })
     );
 
     const productData = {
@@ -142,6 +176,8 @@ const EditProduct = () => {
       quantity: parseInt(formData.quantity) || 0,
       categoryId: formData.categoryId || null,
       specifications: Object.keys(filteredSpecs).length > 0 ? filteredSpecs : null,
+      primaryImage,
+      detailImages,
     };
 
     updateProductMutation.mutate(productData);
@@ -176,15 +212,26 @@ const EditProduct = () => {
     setCustomSpecs((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handlePrimaryImageChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setPrimaryImage(file);
+  };
+
+  const handleDetailImagesChange = (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 3);
+    setDetailImages(files);
+  };
+
+  const handleDeleteExistingImage = (publicId) => {
+    if (!publicId) return;
+    deleteImageMutation.mutate({ productId: id, publicId });
+  };
+
   const categories = categoriesData?.data || [];
   const visibleSpecs = showAllSpecs ? defaultSpecFields : defaultSpecFields.slice(0, 8);
 
-  if (isLoadingProduct) {
-    return (
-      <div className="p-6 flex justify-center items-center">
-        <div className="text-gray-600">Đang tải...</div>
-      </div>
-    );
+  if (isLoadingProduct || !productData) {
+    return <div>Đang tải...</div>;
   }
 
   return (
@@ -285,6 +332,75 @@ const EditProduct = () => {
                 ))}
               </select>
             </div>
+            </div>
+
+            {/* Product Images */}
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Hình ảnh sản phẩm</h2>
+
+              {existingImages.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Ảnh hiện tại</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {existingImages.map((img, idx) => (
+                      <div key={img.publicId || `${img.url}-${idx}`} className="relative border rounded-lg overflow-hidden">
+                        <img src={img.url} alt={`Ảnh ${idx + 1}`} className="w-full h-24 object-cover" />
+                        {img.publicId && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteExistingImage(img.publicId)}
+                            disabled={deleteImageMutation.isLoading}
+                            className="absolute top-1 right-1 p-1.5 bg-white/90 text-red-500 rounded hover:bg-white disabled:opacity-50"
+                            title="Xóa ảnh"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-gray-700 font-semibold mb-2">Thêm ảnh đại diện mới</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePrimaryImageChange}
+                  className="w-full border rounded-lg px-4 py-2 bg-white"
+                />
+                {primaryImage && (
+                  <img
+                    src={URL.createObjectURL(primaryImage)}
+                    alt="Ảnh đại diện mới"
+                    className="mt-3 w-32 h-32 object-cover rounded-lg border"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">Thêm ảnh chi tiết mới (tối đa 3 ảnh)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleDetailImagesChange}
+                  className="w-full border rounded-lg px-4 py-2 bg-white"
+                />
+                {detailImages.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-3">
+                    {detailImages.map((file, idx) => (
+                      <img
+                        key={`${file.name}-${idx}`}
+                        src={URL.createObjectURL(file)}
+                        alt={`Ảnh mới ${idx + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Is Active */}

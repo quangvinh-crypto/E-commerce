@@ -51,6 +51,7 @@ const ProductListingPage = () => {
         limit: 12,
         sortBy,
         sortOrder,
+        isActive: true,
         categoryId: filters.category || undefined,
         minPrice: filters.minPrice || undefined,
         maxPrice: filters.maxPrice || undefined,
@@ -58,14 +59,19 @@ const ProductListingPage = () => {
 
       let res;
       if (filters.search) {
-        res = await productService.searchProducts(filters.search, params);
+        const searchParams = {
+          ...params,
+          sortBy: sortBy === 'createdAt' ? '_score' : sortBy,
+          sortOrder: sortBy === 'createdAt' ? 'desc' : sortOrder,
+        };
+        res = await productService.searchProducts(filters.search, searchParams);
       } else {
         res = await productService.getProducts(params);
       }
 
-      setProducts(res.data || []);
+      setProducts(res.data || res.products || []);
       setTotalPages(res.pagination?.totalPages || 1);
-      setTotalProducts(res.pagination?.total || res.data?.length || 0);
+      setTotalProducts(res.pagination?.total || res.data?.length || res.products?.length || 0);
     } catch (e) {
       console.error(e);
       setProducts([]);

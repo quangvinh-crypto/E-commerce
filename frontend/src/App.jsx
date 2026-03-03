@@ -22,8 +22,6 @@ import {
   EditProduct,
   ProductDetailManagement,
   CategoryManagement,
-  CacheManagement,
-  SearchIndexManagement,
   StaffOrderManagement,
   InventoryManagement,
 } from './pages/Staff';
@@ -144,8 +142,6 @@ function App() {
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="orders" element={<OrderManagement />} />
           <Route path="inventory" element={<InventoryManagement />} />
-          <Route path="cache" element={<CacheManagement />} />
-          <Route path="search" element={<SearchIndexManagement />} />
           <Route path="reports" element={<div className="p-6">Báo cáo (Sắp ra mắt)</div>} />
           <Route path="settings" element={<div className="p-6">Cài đặt (Sắp ra mắt)</div>} />
         </Route>
@@ -168,8 +164,6 @@ function App() {
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="orders" element={<StaffOrderManagement />} />
           <Route path="inventory" element={<InventoryManagement />} />
-          <Route path="cache" element={<CacheManagement />} />
-          <Route path="search" element={<SearchIndexManagement />} />
         </Route>
 
         {/* Error pages */}
