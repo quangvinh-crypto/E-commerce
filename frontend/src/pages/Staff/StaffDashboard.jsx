@@ -116,7 +116,7 @@ const StaffDashboard = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">Thao Tác Nhanh</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
             to="/staff/products/create"
             className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition text-center"
@@ -134,12 +134,6 @@ const StaffDashboard = () => {
             className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition text-center"
           >
             🛒 Xử Lý Đơn Hàng
-          </Link>
-          <Link
-            to="/staff/search"
-            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition text-center"
-          >
-            🔍 Search Index
           </Link>
         </div>
       </div>
@@ -186,36 +180,6 @@ const StaffDashboard = () => {
         )}
       </div>
 
-      {/* System Tools */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold mb-4">System Tools</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            to="/staff/cache"
-            className="border-2 border-gray-300 hover:border-blue-500 rounded-lg p-4 transition"
-          >
-            <div className="flex items-center">
-              <span className="text-3xl mr-3">🗄️</span>
-              <div>
-                <h3 className="font-semibold">Cache Management</h3>
-                <p className="text-sm text-gray-600">Quản lý Redis cache</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/staff/search"
-            className="border-2 border-gray-300 hover:border-blue-500 rounded-lg p-4 transition"
-          >
-            <div className="flex items-center">
-              <span className="text-3xl mr-3">🔍</span>
-              <div>
-                <h3 className="font-semibold">Search Index</h3>
-                <p className="text-sm text-gray-600">Quản lý OpenSearch index</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </div>
     </div>
   );
 };

@@ -1,15 +1,30 @@
 const mongoose = require('mongoose');
 const { Product, Category } = require('../models');
 const { deleteImage } = require('../config/cloudinary');
-const CacheService = require('./CacheService');
 const SearchService = require('./SearchService');
 
 class ProductService {
-  async getAllProducts(filters = {}, options = {}) {
-    const cacheKey = CacheService.generateHash({ filters, options });
-    const cached = await CacheService.getProductList(cacheKey);
-    if (cached) return cached;
+  parseSpecifications(specifications) {
+    if (specifications === undefined) return undefined;
+    if (specifications === null || specifications === '') return null;
 
+    if (typeof specifications === 'string') {
+      try {
+        const parsed = JSON.parse(specifications);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (typeof specifications === 'object') {
+      return specifications;
+    }
+
+    return null;
+  }
+
+  async getAllProducts(filters = {}, options = {}) {
     const { categoryId, search, minPrice, maxPrice, isActive, includeCategory = true } = filters;
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC' } = options;
 
@@ -42,14 +57,10 @@ class ProductService {
       },
     };
 
-    await CacheService.setProductList(cacheKey, result, 300);
     return result;
   }
 
   async getProductById(id, options = {}) {
-    const cached = await CacheService.getProduct(id);
-    if (cached) return cached;
-
     const { includeCategory = true } = options;
     let query = Product.findById(id);
     if (includeCategory) {
@@ -59,12 +70,12 @@ class ProductService {
     const product = await query;
     if (!product) throw new Error('Product not found');
 
-    await CacheService.setProduct(id, product.toJSON(), 3600);
     return product;
   }
 
   async createProduct(productData, files = []) {
     const { name, description, price, quantity, categoryId, isActive, specifications } = productData;
+    const parsedSpecifications = this.parseSpecifications(specifications);
 
     if (categoryId) {
       const category = await Category.findById(categoryId);
@@ -81,12 +92,10 @@ class ProductService {
       categoryId: categoryId || null,
       isActive: isActive !== undefined ? isActive : true,
       images,
-      specifications: specifications || null,
+      specifications: parsedSpecifications,
     });
 
     await SearchService.indexProduct(product);
-    await CacheService.delByPattern('products:list:*');
-    await CacheService.delByPattern('products:search:*');
 
     return product;
   }
@@ -96,6 +105,7 @@ class ProductService {
     if (!product) throw new Error('Product not found');
 
     const { name, description, price, quantity, categoryId, isActive, specifications } = updateData;
+    const parsedSpecifications = this.parseSpecifications(specifications);
 
     if (categoryId !== undefined && categoryId !== String(product.categoryId) && categoryId !== null) {
       const category = await Category.findById(categoryId);
@@ -113,14 +123,11 @@ class ProductService {
     if (quantity !== undefined) product.quantity = quantity;
     if (categoryId !== undefined) product.categoryId = categoryId;
     if (isActive !== undefined) product.isActive = isActive;
-    if (specifications !== undefined) product.specifications = specifications;
+    if (specifications !== undefined) product.specifications = parsedSpecifications;
 
     await product.save();
 
     await SearchService.indexProduct(product);
-    await CacheService.delProduct(id);
-    await CacheService.delByPattern('products:list:*');
-    await CacheService.delByPattern('products:search:*');
 
     return product;
   }
@@ -136,9 +143,6 @@ class ProductService {
     await product.deleteOne();
 
     await SearchService.removeProduct(id);
-    await CacheService.delProduct(id);
-    await CacheService.delByPattern('products:list:*');
-    await CacheService.delByPattern('products:search:*');
 
     return { message: 'Product deleted successfully', deletedProduct: { id: product.id, name: product.name } };
   }
@@ -155,7 +159,6 @@ class ProductService {
     await product.save();
 
     await SearchService.indexProduct(product);
-    await CacheService.delProduct(productId);
 
     return product;
   }

@@ -7,8 +7,6 @@ import {
   FolderOpen,
   ShoppingCart,
   Boxes,
-  Database,
-  Search,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -22,8 +20,6 @@ const menuItems = [
   { path: '/staff/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/staff/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/staff/inventory', label: 'Tồn kho', icon: Boxes },
-  { path: '/staff/cache', label: 'Bộ nhớ đệm', icon: Database },
-  { path: '/staff/search', label: 'Chỉ mục tìm kiếm', icon: Search },
 ];
 
 const StaffLayout = () => {

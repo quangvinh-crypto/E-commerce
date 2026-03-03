@@ -24,14 +24,6 @@ export const API_ENDPOINTS = {
     BY_ID: (id) => `/users/${id}`,
     PROFILE: '/users/profile',
   },
-  CACHE: {
-    CLEAR: '/cache/clear',
-    STATS: '/cache/stats',
-  },
-  SEARCH: {
-    REINDEX: '/search/reindex',
-    STATS: '/search/stats',
-  },
 };
 
 export const ROUTES = {
@@ -55,8 +47,6 @@ export const ROUTES = {
     CREATE_PRODUCT: '/staff/products/create',
     EDIT_PRODUCT: (id) => `/staff/products/${id}/edit`,
     CATEGORIES: '/staff/categories',
-    CACHE: '/staff/cache',
-    SEARCH: '/staff/search',
   },
 };
 

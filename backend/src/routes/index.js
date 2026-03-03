@@ -3,7 +3,6 @@ const authRoutes = require('./authRoutes');
 const categoryRoutes = require('./categoryRoutes');
 const productRoutes = require('./productRoutes');
 const userRoutes = require('./userRoutes');
-const cacheRoutes = require('./cacheRoutes');
 const searchRoutes = require('./searchRoutes');
 const orderRoutes = require('./orderRoutes');
 const paymentRoutes = require('./paymentRoutes');
@@ -15,7 +14,6 @@ router.use('/auth', authRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/products', productRoutes);
 router.use('/users', userRoutes);
-router.use('/cache', cacheRoutes);
 router.use('/search', searchRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payment', paymentRoutes);
@@ -32,7 +30,6 @@ router.get('/', (req, res) => {
       users: '/api/users (Admin only)',
       orders: '/api/orders',
       payment: '/api/payment',
-      cache: '/api/cache',
       search: '/api/search',
       health: '/health'
     }

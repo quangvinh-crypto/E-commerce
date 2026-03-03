@@ -27,7 +27,18 @@ const InventoryManagement = () => {
 
   const { data, isLoading } = useQuery(
     ['inventory', filters],
-    () => productService.getProducts({ ...filters, limit: 100 }),
+    async () => {
+      if (filters.search?.trim()) {
+        return productService.searchProducts(filters.search, {
+          page: filters.page,
+          limit: 100,
+          sortBy: filters.sortBy === 'createdAt' ? '_score' : filters.sortBy,
+          sortOrder: filters.sortBy === 'createdAt' ? 'desc' : filters.sortOrder,
+          categoryId: filters.categoryId || undefined,
+        });
+      }
+      return productService.getProducts({ ...filters, limit: 100 });
+    },
     { keepPreviousData: true }
   );
 

@@ -1,12 +1,7 @@
 const { Category, Product } = require('../models');
-const CacheService = require('./CacheService');
 
 class CategoryService {
   async getAllCategories(filters = {}, options = {}) {
-    const cacheKey = CacheService.generateHash({ type: 'categories', filters, options });
-    const cached = await CacheService.get(`categories:list:${cacheKey}`);
-    if (cached) return cached;
-
     const { search, includeProducts = false } = filters;
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC' } = options;
 
@@ -47,14 +42,10 @@ class CategoryService {
       },
     };
 
-    await CacheService.set(`categories:list:${cacheKey}`, result, 600);
     return result;
   }
 
   async getCategoryById(id, options = {}) {
-    const cached = await CacheService.getCategory(id);
-    if (cached && !options.includeProducts) return cached;
-
     const { includeProducts = false } = options;
     let query = Category.findById(id);
     if (includeProducts) {
@@ -63,10 +54,6 @@ class CategoryService {
 
     const category = await query;
     if (!category) throw new Error('Category not found');
-
-    if (!includeProducts) {
-      await CacheService.setCategory(id, category.toJSON(), 3600);
-    }
 
     return category;
   }
@@ -82,7 +69,6 @@ class CategoryService {
       description: description || null,
     });
 
-    await CacheService.delByPattern('categories:list:*');
     return category;
   }
 
@@ -102,8 +88,6 @@ class CategoryService {
 
     await category.save();
 
-    await CacheService.delCategory(id);
-    await CacheService.delByPattern('categories:list:*');
     return category;
   }
 
@@ -120,10 +104,6 @@ class CategoryService {
     }
 
     await category.deleteOne();
-
-    await CacheService.delCategory(id);
-    await CacheService.delByPattern('categories:list:*');
-    await CacheService.delByPattern('products:list:*');
 
     return { message: 'Category deleted successfully', deletedCategory: { id: category.id, name: category.name } };
   }
