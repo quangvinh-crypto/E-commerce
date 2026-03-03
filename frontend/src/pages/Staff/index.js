@@ -6,3 +6,4 @@ export { default as ProductDetailManagement } from './ProductDetailManagement';
 export { default as CategoryManagement } from './CategoryManagement';
 export { default as StaffOrderManagement } from './StaffOrderManagement';
 export { default as InventoryManagement } from './InventoryManagement';
+export { default as ReviewManagement } from './ReviewManagement';

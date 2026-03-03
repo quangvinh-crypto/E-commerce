@@ -24,6 +24,7 @@ import {
   CategoryManagement,
   StaffOrderManagement,
   InventoryManagement,
+  ReviewManagement,
 } from './pages/Staff';
 
 // Customer pages
@@ -142,6 +143,7 @@ function App() {
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="orders" element={<OrderManagement />} />
           <Route path="inventory" element={<InventoryManagement />} />
+          <Route path="reviews" element={<ReviewManagement />} />
           <Route path="reports" element={<div className="p-6">Báo cáo (Sắp ra mắt)</div>} />
           <Route path="settings" element={<div className="p-6">Cài đặt (Sắp ra mắt)</div>} />
         </Route>
@@ -164,6 +166,7 @@ function App() {
           <Route path="categories" element={<CategoryManagement />} />
           <Route path="orders" element={<StaffOrderManagement />} />
           <Route path="inventory" element={<InventoryManagement />} />
+          <Route path="reviews" element={<ReviewManagement />} />
         </Route>
 
         {/* Error pages */}

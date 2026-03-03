@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import wishlistService from '../services/wishlistService';
+import { useAuth } from './AuthContext';
 
 const WishlistContext = createContext();
 
@@ -12,21 +13,23 @@ export const useWishlist = () => {
 };
 
 export const WishlistProvider = ({ children }) => {
+  const { user } = useAuth();
+  const userId = user?.id || 'guest';
   const [wishlist, setWishlist] = useState([]);
   const [wishlistCount, setWishlistCount] = useState(0);
 
-  useEffect(() => {
-    loadWishlist();
-  }, []);
-
-  const loadWishlist = () => {
-    const items = wishlistService.getWishlist();
+  const loadWishlist = useCallback(() => {
+    const items = wishlistService.getWishlist(userId);
     setWishlist(items);
     setWishlistCount(items.length);
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    loadWishlist();
+  }, [loadWishlist]);
 
   const addToWishlist = (product) => {
-    const result = wishlistService.addToWishlist(product);
+    const result = wishlistService.addToWishlist(product, userId);
     if (result.success) {
       loadWishlist();
     }
@@ -34,7 +37,7 @@ export const WishlistProvider = ({ children }) => {
   };
 
   const removeFromWishlist = (productId) => {
-    const result = wishlistService.removeFromWishlist(productId);
+    const result = wishlistService.removeFromWishlist(productId, userId);
     if (result.success) {
       loadWishlist();
     }
@@ -42,11 +45,11 @@ export const WishlistProvider = ({ children }) => {
   };
 
   const isInWishlist = (productId) => {
-    return wishlistService.isInWishlist(productId);
+    return wishlistService.isInWishlist(productId, userId);
   };
 
   const clearWishlist = () => {
-    const result = wishlistService.clearWishlist();
+    const result = wishlistService.clearWishlist(userId);
     if (result.success) {
       loadWishlist();
     }

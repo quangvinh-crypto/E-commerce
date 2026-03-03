@@ -45,6 +45,17 @@ const ProductSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    ratingAverage: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    ratingCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true,
@@ -55,6 +66,8 @@ const ProductSchema = new mongoose.Schema(
         if (ret.categoryId) {
           ret.categoryId = ret.categoryId.toString();
         }
+        ret.rating = ret.ratingAverage;
+        ret.review_count = ret.ratingCount;
         delete ret._id;
         delete ret.__v;
         return ret;

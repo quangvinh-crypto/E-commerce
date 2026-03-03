@@ -1,4 +1,23 @@
-const WISHLIST_KEY = 'wishlist';
+const LEGACY_WISHLIST_KEY = 'wishlist';
+
+const normalizeUserId = (userId) => {
+  if (userId === null || userId === undefined || userId === '') return 'guest';
+  return String(userId);
+};
+
+const getWishlistKey = (userId) => `wishlist:${normalizeUserId(userId)}`;
+
+const readWishlist = (userId) => {
+  const raw = localStorage.getItem(getWishlistKey(userId));
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+};
 
 const getProductImage = (product = {}) => {
   if (product.image_url) return product.image_url;
@@ -12,31 +31,61 @@ const getProductImage = (product = {}) => {
   return '';
 };
 
+const migrateLegacyWishlistIfNeeded = (userId) => {
+  const targetKey = getWishlistKey(userId);
+  if (localStorage.getItem(targetKey)) return;
+
+  const legacyRaw = localStorage.getItem(LEGACY_WISHLIST_KEY);
+  if (!legacyRaw) return;
+
+  try {
+    const legacyParsed = JSON.parse(legacyRaw);
+    if (!Array.isArray(legacyParsed)) {
+      localStorage.removeItem(LEGACY_WISHLIST_KEY);
+      return;
+    }
+
+    const mapped = legacyParsed.map((item) => ({
+      ...item,
+      userId: normalizeUserId(userId),
+    }));
+
+    localStorage.setItem(targetKey, JSON.stringify(mapped));
+    localStorage.removeItem(LEGACY_WISHLIST_KEY);
+  } catch (_) {
+    localStorage.removeItem(LEGACY_WISHLIST_KEY);
+  }
+};
+
 const wishlistService = {
-  getWishlist: () => {
-    const wishlist = localStorage.getItem(WISHLIST_KEY);
-    const parsed = wishlist ? JSON.parse(wishlist) : [];
+  getWishlist: (userId) => {
+    migrateLegacyWishlistIfNeeded(userId);
+    const parsed = readWishlist(userId);
+    const normalizedUserId = normalizeUserId(userId);
     const normalized = Array.isArray(parsed)
       ? parsed.map((item) => ({
           ...item,
+          userId: item.userId ? String(item.userId) : normalizedUserId,
           image_url: item.image_url || getProductImage(item),
           images: Array.isArray(item.images) ? item.images : [],
         }))
       : [];
 
     if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
-      localStorage.setItem(WISHLIST_KEY, JSON.stringify(normalized));
+      localStorage.setItem(getWishlistKey(userId), JSON.stringify(normalized));
     }
 
     return normalized;
   },
 
-  addToWishlist: (product) => {
-    const wishlist = wishlistService.getWishlist();
+  addToWishlist: (product, userId) => {
+    const normalizedUserId = normalizeUserId(userId);
+    const wishlist = wishlistService.getWishlist(normalizedUserId);
     const exists = wishlist.find(item => item.id === product.id);
     if (!exists) {
       wishlist.push({
         id: product.id,
+        userId: normalizedUserId,
         name: product.name,
         price: product.price,
         image_url: getProductImage(product),
@@ -44,33 +93,36 @@ const wishlistService = {
         specifications: product.specifications || null,
         addedAt: new Date().toISOString(),
       });
-      localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
+      localStorage.setItem(getWishlistKey(normalizedUserId), JSON.stringify(wishlist));
       return { success: true, message: 'Đã thêm vào yêu thích' };
     }
     return { success: false, message: 'Sản phẩm đã có trong danh sách yêu thích' };
   },
 
-  removeFromWishlist: (productId) => {
-    const wishlist = wishlistService.getWishlist();
+  removeFromWishlist: (productId, userId) => {
+    const normalizedUserId = normalizeUserId(userId);
+    const wishlist = wishlistService.getWishlist(normalizedUserId);
     const filtered = wishlist.filter(item => item.id !== productId);
-    localStorage.setItem(WISHLIST_KEY, JSON.stringify(filtered));
+    localStorage.setItem(getWishlistKey(normalizedUserId), JSON.stringify(filtered));
     return { success: true, message: 'Đã xóa khỏi yêu thích' };
   },
 
-  isInWishlist: (productId) => {
-    const wishlist = wishlistService.getWishlist();
+  isInWishlist: (productId, userId) => {
+    const wishlist = wishlistService.getWishlist(userId);
     return wishlist.some(item => item.id === productId);
   },
 
-  clearWishlist: () => {
-    localStorage.removeItem(WISHLIST_KEY);
+  clearWishlist: (userId) => {
+    localStorage.removeItem(getWishlistKey(userId));
     return { success: true, message: 'Đã xóa tất cả' };
   },
 
-  upsertWishlistItem: (product) => {
-    const wishlist = wishlistService.getWishlist();
+  upsertWishlistItem: (product, userId) => {
+    const normalizedUserId = normalizeUserId(userId);
+    const wishlist = wishlistService.getWishlist(normalizedUserId);
     const mappedItem = {
       id: product.id,
+      userId: normalizedUserId,
       name: product.name,
       price: product.price,
       image_url: getProductImage(product),
@@ -86,12 +138,12 @@ const wishlistService = {
       wishlist.push(mappedItem);
     }
 
-    localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
+    localStorage.setItem(getWishlistKey(normalizedUserId), JSON.stringify(wishlist));
     return { success: true };
   },
 
-  getWishlistCount: () => {
-    return wishlistService.getWishlist().length;
+  getWishlistCount: (userId) => {
+    return wishlistService.getWishlist(userId).length;
   },
 };
 
