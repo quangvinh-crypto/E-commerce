@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Trash2, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
+import { getImageUrl } from '../../utils/imageHelper';
+import productService from '../../services/productService';
+import wishlistService from '../../services/wishlistService';
 import toast from 'react-hot-toast';
 
 const WishlistPage = () => {
-  const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
+  const { wishlist, removeFromWishlist, clearWishlist, loadWishlist } = useWishlist();
   const { addToCart } = useCart();
   const [removing, setRemoving] = useState(null);
+  const [isHydratingImages, setIsHydratingImages] = useState(false);
 
   const handleRemove = (productId) => {
     setRemoving(productId);
@@ -25,7 +29,8 @@ const WishlistPage = () => {
       id: product.id,
       name: product.name,
       price: product.price,
-      image_url: product.image_url,
+      image_url: getWishlistImage(product),
+      images: product.images,
       quantity: 1,
     });
     toast.success('Đã thêm vào giỏ hàng');
@@ -44,6 +49,62 @@ const WishlistPage = () => {
       currency: 'VND',
     }).format(price);
   };
+
+  const getWishlistImage = (product) => {
+    if (product.images?.length > 0) {
+      return getImageUrl(product.images[0], 'https://via.placeholder.com/400?text=No+Image');
+    }
+    if (product.image_url) {
+      return getImageUrl(product.image_url, 'https://via.placeholder.com/400?text=No+Image');
+    }
+    return 'https://via.placeholder.com/400?text=No+Image';
+  };
+
+  useEffect(() => {
+    if (isHydratingImages || wishlist.length === 0) return;
+
+    const missingImageItems = wishlist.filter((item) => {
+      const hasImages = Array.isArray(item.images) && item.images.length > 0;
+      return !hasImages && !item.image_url;
+    });
+
+    if (missingImageItems.length === 0) return;
+
+    let cancelled = false;
+
+    const hydrateImages = async () => {
+      setIsHydratingImages(true);
+      try {
+        await Promise.all(
+          missingImageItems.map(async (item) => {
+            try {
+              const response = await productService.getProductById(item.id);
+              const product = response?.data;
+              if (product) {
+                wishlistService.upsertWishlistItem(product);
+              }
+            } catch (_) {
+              // Skip broken products in wishlist hydration
+            }
+          })
+        );
+
+        if (!cancelled) {
+          loadWishlist();
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHydratingImages(false);
+        }
+      }
+    };
+
+    hydrateImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [wishlist, isHydratingImages, loadWishlist]);
 
   return (
     <CustomerLayout>
@@ -100,9 +161,12 @@ const WishlistPage = () => {
                 <Link to={`/products/${product.id}`} className="block relative">
                   <div className="aspect-square bg-zinc-800 overflow-hidden">
                     <img
-                      src={product.image_url || 'https://via.placeholder.com/400'}
+                      src={getWishlistImage(product)}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/400?text=No+Image';
+                      }}
                     />
                   </div>
                   <button

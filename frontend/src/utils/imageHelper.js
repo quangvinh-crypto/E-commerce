@@ -6,10 +6,29 @@
  * Convert image data to URL string
  * Handles both string URLs and object format {url, publicId}
  */
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_ORIGIN = API_URL.replace(/\/api\/?$/, '');
+
+const resolveImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  const normalizedUrl = url.replace(/\\/g, '/').trim();
+
+  if (/^(https?:)?\/\//i.test(normalizedUrl) || normalizedUrl.startsWith('data:') || normalizedUrl.startsWith('blob:')) {
+    return normalizedUrl;
+  }
+
+  if (normalizedUrl.startsWith('/')) {
+    return `${API_ORIGIN}${normalizedUrl}`;
+  }
+
+  return `${API_ORIGIN}/${normalizedUrl}`;
+};
+
 export const getImageUrl = (image, fallback = 'https://via.placeholder.com/300?text=No+Image') => {
   if (!image) return fallback;
-  if (typeof image === 'string') return image;
-  if (typeof image === 'object' && image.url) return image.url;
+  if (typeof image === 'string') return resolveImageUrl(image);
+  if (typeof image === 'object' && image.url) return resolveImageUrl(image.url);
   return fallback;
 };
 
