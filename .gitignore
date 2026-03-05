@@ -1,6 +1,7 @@
 # Environment and secrets
 .env
 *.env
+*.env.*
 **/.env
 **/.env.*
 !**/.env.example
@@ -11,8 +12,14 @@
 *.p12
 *.pfx
 
-# Docs not for remote
-*.md
-!README.md
-!backend/README.md
-!frontend/README.md
+# Local config and credentials
+credentials.json
+service-account*.json
+
+# Dependencies/build
+**/node_modules/
+**/build/
+**/coverage/
+
+# Logs
+*.log

@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const { connectDB, mongoose } = require('./config/database');
 const { connectElasticsearch } = require('./config/elasticsearch');
+const { connectRedis, disconnectRedis, isRedisConnected } = require('./config/redis');
 const errorHandler = require('./middleware/errorHandler');
 const routes = require('./routes');
 
@@ -55,6 +56,7 @@ app.get('/health', async (req, res) => {
       status: 'OK',
       message: 'Server is running',
       database: 'Connected',
+      redis: isRedisConnected() ? 'Connected' : 'Disconnected',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -62,6 +64,7 @@ app.get('/health', async (req, res) => {
       status: 'ERROR',
       message: 'Server is running but database connection failed',
       database: 'Disconnected',
+      redis: isRedisConnected() ? 'Connected' : 'Disconnected',
       timestamp: new Date().toISOString(),
     });
   }
@@ -87,6 +90,7 @@ const gracefulShutdown = async (signal) => {
   const { disconnectElasticsearch } = require('./config/elasticsearch');
   
   await disconnectElasticsearch();
+  await disconnectRedis();
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
   }
@@ -102,6 +106,9 @@ const startServer = async () => {
 
     const SeedService = require('./services/SeedService');
     await SeedService.ensureRootAdmin();
+
+    // Connect to Redis cache (optional)
+    await connectRedis();
 
     // Connect to OpenSearch
     const esConnected = await connectElasticsearch();

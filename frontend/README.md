@@ -49,3 +49,7 @@ frontend/src/
 - `REACT_APP_API_URL` (vi du: `http://localhost:5000/api`)
 
 Neu khong dat bien nay, ung dung se dung gia tri mac dinh trong code.
+
+## Security Notes
+- Khong commit file `.env` hoac thong tin nhay cam len git.
+- Khong hard-code token/secret trong source code frontend.

@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const SearchService = require('../services/SearchService');
+const cacheResponse = require('../middleware/cacheResponse');
 
 /**
  * Search products
  * @route GET /api/search
  * @access Public
  */
-router.get('/', async (req, res, next) => {
+router.get('/', cacheResponse({ scope: 'search:list', ttlSeconds: 90 }), async (req, res, next) => {
   try {
     const { q, categoryId, minPrice, maxPrice, isActive, page, limit, sortBy, sortOrder } = req.query;
     const parsedIsActive =
@@ -44,7 +45,7 @@ router.get('/', async (req, res, next) => {
  * Get search suggestions
  * @route GET /api/search/suggest
  */
-router.get('/suggest', async (req, res, next) => {
+router.get('/suggest', cacheResponse({ scope: 'search:suggest', ttlSeconds: 45 }), async (req, res, next) => {
   try {
     const { q, limit } = req.query;
     const suggestions = await SearchService.suggest(q, limit ? parseInt(limit) : 10);

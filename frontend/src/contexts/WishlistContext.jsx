@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import wishlistService from '../services/wishlistService';
 import { useAuth } from './AuthContext';
 
@@ -17,6 +17,10 @@ export const WishlistProvider = ({ children }) => {
   const userId = user?.id || 'guest';
   const [wishlist, setWishlist] = useState([]);
   const [wishlistCount, setWishlistCount] = useState(0);
+  const wishlistIdSet = useMemo(
+    () => new Set(wishlist.map((item) => String(item.id))),
+    [wishlist]
+  );
 
   const loadWishlist = useCallback(() => {
     const items = wishlistService.getWishlist(userId);
@@ -45,7 +49,7 @@ export const WishlistProvider = ({ children }) => {
   };
 
   const isInWishlist = (productId) => {
-    return wishlistService.isInWishlist(productId, userId);
+    return wishlistIdSet.has(String(productId));
   };
 
   const clearWishlist = () => {

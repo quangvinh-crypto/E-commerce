@@ -3,6 +3,7 @@ const router = express.Router();
 const ProductController = require('../controllers/ProductController');
 const ReviewController = require('../controllers/ReviewController');
 const { uploadMultiple, handleMulterError } = require('../middleware/upload');
+const cacheResponse = require('../middleware/cacheResponse');
 const { auth, isStaff, isCustomer } = require('../middleware/auth');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
@@ -62,9 +63,23 @@ const idParamValidation = [
 // ============================================
 // PUBLIC ROUTES - Ai cũng xem được
 // ============================================
-router.get('/', ProductController.getAllProducts);
-router.get('/:id', idParamValidation, ProductController.getProductById);
-router.get('/:id/reviews', idParamValidation, ReviewController.getProductReviews);
+router.get(
+  '/',
+  cacheResponse({ scope: 'products:list', ttlSeconds: 120 }),
+  ProductController.getAllProducts
+);
+router.get(
+  '/:id',
+  cacheResponse({ scope: 'products:detail', ttlSeconds: 180, payloadBuilder: (req) => ({ id: req.params.id, query: req.query }) }),
+  idParamValidation,
+  ProductController.getProductById
+);
+router.get(
+  '/:id/reviews',
+  cacheResponse({ scope: 'products:reviews', ttlSeconds: 60, payloadBuilder: (req) => ({ id: req.params.id, query: req.query }) }),
+  idParamValidation,
+  ReviewController.getProductReviews
+);
 router.post('/:id/reviews', auth, isCustomer, idParamValidation, upsertReviewValidation, ReviewController.createProductReview);
 
 // ============================================

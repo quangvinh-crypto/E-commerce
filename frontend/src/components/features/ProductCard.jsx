@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Heart } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
@@ -45,16 +46,26 @@ const ProductCard = ({ product }) => {
     : 0;
 
   const displayPrice = product.discount_price || product.price;
-  const specs =
-    typeof product.specifications === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(product.specifications);
-          } catch (_) {
-            return {};
-          }
-        })()
-      : product.specifications || {};
+  const specs = useMemo(() => {
+    if (typeof product.specifications === 'string') {
+      try {
+        return JSON.parse(product.specifications);
+      } catch (_) {
+        return {};
+      }
+    }
+    return product.specifications || {};
+  }, [product.specifications]);
+
+  const thumbnailUrl = useMemo(() => {
+    if (product.images?.length > 0) {
+      return getImageUrl(product.images[0]);
+    }
+    if (product.image_url) {
+      return getImageUrl(product.image_url);
+    }
+    return 'https://via.placeholder.com/300?text=No+Image';
+  }, [product.images, product.image_url]);
   const ram = specs.ram || specs.memory || '';
   const rom = specs.storage || specs.rom || '';
 
@@ -89,13 +100,7 @@ const ProductCard = ({ product }) => {
 
       <div className="relative overflow-hidden bg-zinc-800 aspect-square flex-shrink-0">
         <img
-          src={
-            product.images?.length > 0
-              ? getImageUrl(product.images[0])
-              : product.image_url
-              ? getImageUrl(product.image_url)
-              : 'https://via.placeholder.com/300?text=No+Image'
-          }
+          src={thumbnailUrl}
           alt={product.name}
           className="w-full h-full object-cover"
           onError={(e) => { e.target.src = 'https://via.placeholder.com/300?text=No+Image'; }}
