@@ -32,6 +32,12 @@ const createOrderValidation = [
     .optional()
     .isIn(['cod', 'credit_card', 'debit_card', 'paypal', 'bank_transfer', 'vnpay'])
     .withMessage('Invalid payment method'),
+  body('couponCode')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('Coupon code must be a string')
+    .isLength({ min: 3, max: 30 })
+    .withMessage('Coupon code must be between 3 and 30 characters'),
   validate,
 ];
 

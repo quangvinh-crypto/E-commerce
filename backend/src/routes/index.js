@@ -6,6 +6,7 @@ const userRoutes = require('./userRoutes');
 const searchRoutes = require('./searchRoutes');
 const orderRoutes = require('./orderRoutes');
 const paymentRoutes = require('./paymentRoutes');
+const couponRoutes = require('./couponRoutes');
 const { reviewRouter } = require('./reviewRoutes');
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.use('/users', userRoutes);
 router.use('/search', searchRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payment', paymentRoutes);
+router.use('/coupons', couponRoutes);
 router.use('/reviews', reviewRouter);
 
 // API Info
@@ -32,6 +34,7 @@ router.get('/', (req, res) => {
       users: '/api/users (Admin only)',
       orders: '/api/orders',
       payment: '/api/payment',
+      coupons: '/api/coupons',
       reviews: '/api/reviews',
       search: '/api/search',
       health: '/health'
