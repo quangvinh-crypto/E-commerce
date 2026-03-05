@@ -1,4 +1,14 @@
 const CategoryService = require('../services/CategoryService');
+const CacheService = require('../services/CacheService');
+
+const CATEGORY_CACHE_SCOPES_TO_INVALIDATE = [
+  'categories:list',
+  'categories:detail',
+  'products:list',
+  'products:detail',
+  'search:list',
+  'search:suggest',
+];
 
 /**
  * Get all categories
@@ -67,6 +77,7 @@ const createCategory = async (req, res, next) => {
     const categoryData = req.body;
 
     const category = await CategoryService.createCategory(categoryData);
+    await CacheService.invalidateScopes(CATEGORY_CACHE_SCOPES_TO_INVALIDATE);
 
     res.status(201).json({
       success: true,
@@ -88,6 +99,7 @@ const updateCategory = async (req, res, next) => {
     const updateData = req.body;
 
     const category = await CategoryService.updateCategory(id, updateData);
+    await CacheService.invalidateScopes(CATEGORY_CACHE_SCOPES_TO_INVALIDATE);
 
     res.status(200).json({
       success: true,
@@ -112,6 +124,7 @@ const deleteCategory = async (req, res, next) => {
       id,
       force === 'true'
     );
+    await CacheService.invalidateScopes(CATEGORY_CACHE_SCOPES_TO_INVALIDATE);
 
     res.status(200).json({
       success: true,

@@ -31,7 +31,7 @@ class OrderService {
 
     const transformedItems = (items || []).map((item) => ({
       productId: item.productId || item.product_id,
-      quantity: item.quantity,
+      quantity: Number(item.quantity),
     }));
 
     if (!transformedItems.length) {
@@ -42,21 +42,40 @@ class OrderService {
       throw new Error('Shipping address is required');
     }
 
+    const uniqueProductIds = Array.from(
+      new Set(transformedItems.map((item) => String(item.productId || '')).filter(Boolean))
+    );
+
+    const products = await Product.find({ _id: { $in: uniqueProductIds } });
+    const productMap = new Map(products.map((product) => [String(product.id), product]));
+
+    const requiredQtyByProduct = new Map();
+    transformedItems.forEach((item) => {
+      const key = String(item.productId || '');
+      const current = requiredQtyByProduct.get(key) || 0;
+      requiredQtyByProduct.set(key, current + (Number.isFinite(item.quantity) ? item.quantity : 0));
+    });
+
     let subtotal = 0;
     const orderItemsData = [];
 
     for (const item of transformedItems) {
-      const product = await Product.findById(item.productId);
+      const product = productMap.get(String(item.productId));
       if (!product) {
         throw new Error(`Product with ID ${item.productId} not found`);
+      }
+
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        throw new Error(`Invalid quantity for product ${product.name}`);
       }
 
       if (!product.isActive) {
         throw new Error(`Product ${product.name} is not available`);
       }
 
-      if (product.quantity < item.quantity) {
-        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.quantity}, Requested: ${item.quantity}`);
+      const totalRequired = requiredQtyByProduct.get(String(item.productId)) || 0;
+      if (product.quantity < totalRequired) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.quantity}, Requested: ${totalRequired}`);
       }
 
       const itemPrice = parseFloat(product.price);
@@ -112,15 +131,22 @@ class OrderService {
 
     const order = await Order.create(orderPayload);
 
-    for (const itemData of orderItemsData) {
-      await OrderItem.create({
+    await OrderItem.insertMany(
+      orderItemsData.map((itemData) => ({
         orderId: order.id,
         ...itemData,
-      });
+      }))
+    );
 
-      const product = await Product.findById(itemData.productId);
-      product.quantity -= itemData.quantity;
-      await product.save();
+    const stockOps = Array.from(requiredQtyByProduct.entries()).map(([productId, quantity]) => ({
+      updateOne: {
+        filter: { _id: productId },
+        update: { $inc: { quantity: -quantity } },
+      },
+    }));
+
+    if (stockOps.length > 0) {
+      await Product.bulkWrite(stockOps);
     }
 
     return this.getOrderById(order.id, userId);

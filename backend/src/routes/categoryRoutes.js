@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const CategoryController = require('../controllers/CategoryController');
+const cacheResponse = require('../middleware/cacheResponse');
 const { auth, isStaff } = require('../middleware/auth');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
@@ -41,8 +42,17 @@ const idParamValidation = [
 // ============================================
 // PUBLIC ROUTES - Ai cũng xem được
 // ============================================
-router.get('/', CategoryController.getAllCategories);
-router.get('/:id', idParamValidation, CategoryController.getCategoryById);
+router.get(
+  '/',
+  cacheResponse({ scope: 'categories:list', ttlSeconds: 300 }),
+  CategoryController.getAllCategories
+);
+router.get(
+  '/:id',
+  cacheResponse({ scope: 'categories:detail', ttlSeconds: 300, payloadBuilder: (req) => ({ id: req.params.id, query: req.query }) }),
+  idParamValidation,
+  CategoryController.getCategoryById
+);
 
 // ============================================
 // STAFF & ADMIN ROUTES - Quản lý categories

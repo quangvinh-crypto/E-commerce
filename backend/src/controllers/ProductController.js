@@ -1,4 +1,13 @@
 const ProductService = require('../services/ProductService');
+const CacheService = require('../services/CacheService');
+
+const PRODUCT_CACHE_SCOPES_TO_INVALIDATE = [
+  'products:list',
+  'products:detail',
+  'products:reviews',
+  'search:list',
+  'search:suggest',
+];
 
 class ProductController {
   /**
@@ -104,6 +113,7 @@ class ProductController {
       const files = req.files || []; // From multer middleware
 
       const product = await ProductService.createProduct(productData, files);
+      await CacheService.invalidateScopes(PRODUCT_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(201).json({
         success: true,
@@ -130,6 +140,7 @@ class ProductController {
         updateData,
         files
       );
+      await CacheService.invalidateScopes(PRODUCT_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(200).json({
         success: true,
@@ -150,6 +161,7 @@ class ProductController {
       const { id } = req.params;
 
       const result = await ProductService.deleteProduct(id);
+      await CacheService.invalidateScopes(PRODUCT_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(200).json({
         success: true,
@@ -174,6 +186,7 @@ class ProductController {
         id,
         decodedPublicId
       );
+      await CacheService.invalidateScopes(PRODUCT_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(200).json({
         success: true,

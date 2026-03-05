@@ -1,4 +1,7 @@
 const ReviewService = require('../services/ReviewService');
+const CacheService = require('../services/CacheService');
+
+const REVIEW_CACHE_SCOPES_TO_INVALIDATE = ['products:reviews', 'products:detail'];
 
 class ReviewController {
   async getProductReviews(req, res, next) {
@@ -27,6 +30,7 @@ class ReviewController {
     try {
       const { id: productId } = req.params;
       const result = await ReviewService.createReview(productId, req.user, req.body);
+      await CacheService.invalidateScopes(REVIEW_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(result.created ? 201 : 200).json({
         success: true,
@@ -42,6 +46,7 @@ class ReviewController {
     try {
       const { id } = req.params;
       const review = await ReviewService.updateReview(id, req.user, req.body);
+      await CacheService.invalidateScopes(REVIEW_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(200).json({
         success: true,
@@ -57,6 +62,7 @@ class ReviewController {
     try {
       const { id } = req.params;
       const result = await ReviewService.deleteReview(id, req.user);
+      await CacheService.invalidateScopes(REVIEW_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(200).json({
         success: true,
@@ -74,6 +80,7 @@ class ReviewController {
       const { isVisible } = req.body;
 
       const review = await ReviewService.setVisibility(id, req.user.id, isVisible);
+      await CacheService.invalidateScopes(REVIEW_CACHE_SCOPES_TO_INVALIDATE);
 
       res.status(200).json({
         success: true,

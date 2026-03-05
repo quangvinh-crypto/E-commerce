@@ -2,7 +2,7 @@
 
 ## Overview
 Backend duoc xay dung bang Node.js + Express, cung cap REST API cho he thong thuong mai dien tu.
-Backend xu ly xac thuc, phan quyen, quan ly nguoi dung, san pham, danh muc, don hang, thanh toan va tim kiem.
+Backend xu ly xac thuc, phan quyen, quan ly nguoi dung, san pham, danh muc, don hang, coupon, review, thanh toan VNPay va tim kiem.
 
 ## Architecture Pattern
 Kien truc layer:
@@ -85,21 +85,23 @@ Base URL: `/api`
 - `GET /api/payment/vnpay/ipn`
 - `GET /api/payment/status/:orderId`
 
-### Cache
-- `GET /api/cache/stats`
-- `DELETE /api/cache/all`
-
 ### Search
 - `GET /api/search`
-- `POST /api/search/reindex`
-- `POST /api/search/init`
-- `GET /api/search/health`
+- `GET /api/search/suggest`
+
+## Redis Cache
+- Redis duoc tich hop theo co che response cache cho cac GET endpoint nhieu luu luong.
+- Cac scope cache hien tai: `products:list`, `products:detail`, `products:reviews`, `categories:list`, `categories:detail`, `search:list`, `search:suggest`.
+- Cache tu dong invalidation khi product/category/review thay doi.
+- Header phan hoi: `X-Cache: HIT|MISS`.
 
 ## Setup
 1. `npm install`
 2. Tao `.env` tu `.env.example`
-3. Chay MongoDB/Redis/OpenSearch (neu su dung day du)
-4. Chay dev: `npm run dev`
+3. Chay MongoDB
+4. (Tuy chon) Cau hinh Redis de bat cache API
+5. (Tuy chon) Cau hinh OpenSearch de bat search index
+6. Chay dev: `npm run dev`
 
 ## Environment Variables
 - `PORT`
@@ -107,9 +109,15 @@ Base URL: `/api`
 - `MONGO_URI`
 - `JWT_SECRET`, `JWT_EXPIRE`
 - `FRONTEND_URL`
+- `REDIS_URL` (uu tien) hoac `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD`, `REDIS_TLS`
+- `REDIS_CACHE_ENABLED`, `REDIS_DEFAULT_TTL`, `REDIS_KEY_PREFIX`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`
-- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
 - `OPENSEARCH_NODE`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_BASE_URL`, `VNPAY_RETURN_URL`
 - `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_PASSWORD`, `ROOT_ADMIN_NAME`
+
+## Security Notes
+- Khong commit `.env` hoac thong tin nhay cam (API key, JWT secret, mat khau DB).
+- `.env.example` chi dung gia tri placeholder.
+- Nen rotate toan bo secret neu da tung bi lo.
