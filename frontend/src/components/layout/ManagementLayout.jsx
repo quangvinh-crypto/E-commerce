@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
   LogOut,
   MessageSquare,
+  BadgePercent,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,6 +27,7 @@ const adminMenuItems = [
   { path: '/admin/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/reviews', label: 'Bình luận', icon: MessageSquare },
+  { path: '/admin/coupons', label: 'Coupon', icon: BadgePercent },
   { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes },
   { path: '/admin/reports', label: 'Báo cáo', icon: BarChart3 },
   { path: '/admin/settings', label: 'Cài đặt', icon: Settings },
@@ -38,6 +40,7 @@ const staffMenuItems = [
   { path: '/staff/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/staff/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/staff/reviews', label: 'Bình luận', icon: MessageSquare },
+  { path: '/staff/coupons', label: 'Coupon', icon: BadgePercent },
   { path: '/staff/inventory', label: 'Tồn kho', icon: Boxes },
 ];
 
