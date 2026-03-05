@@ -7,3 +7,4 @@ export { default as CategoryManagement } from './CategoryManagement';
 export { default as StaffOrderManagement } from './StaffOrderManagement';
 export { default as InventoryManagement } from './InventoryManagement';
 export { default as ReviewManagement } from './ReviewManagement';
+export { default as CouponManagement } from './CouponManagement';

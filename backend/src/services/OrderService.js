@@ -1,4 +1,5 @@
 const { Order, OrderItem, Product } = require('../models');
+const CouponService = require('./CouponService');
 
 class OrderService {
   generateOrderNumber() {
@@ -19,13 +20,13 @@ class OrderService {
       notes,
       shippingFee,
       shipping_fee,
-      discount = 0,
       tax = 0,
+      couponCode,
     } = orderData;
 
     const finalShippingAddress = shippingAddress || shipping_address;
     const finalPaymentMethod = paymentMethod || payment_method || 'cod';
-    const finalShippingFee = shippingFee || shipping_fee || 0;
+    const finalShippingFee = shippingFee ?? shipping_fee ?? 0;
     const finalBillingAddress = billingAddress || billing_address;
 
     const transformedItems = (items || []).map((item) => ({
@@ -74,23 +75,42 @@ class OrderService {
       });
     }
 
-    const total = subtotal + parseFloat(finalShippingFee) + parseFloat(tax) - parseFloat(discount);
+    const normalizedShippingFee = Number(finalShippingFee) || 0;
+    const normalizedTax = Number(tax) || 0;
+    let discount = 0;
+    let appliedCoupon = null;
 
-    const order = await Order.create({
+    if (couponCode) {
+      const couponValidation = await CouponService.validateCouponForUser(userId, couponCode, subtotal);
+      discount = couponValidation.discountAmount;
+      appliedCoupon = {
+        couponId: couponValidation.coupon.id,
+        code: couponValidation.coupon.code,
+        discountType: couponValidation.coupon.discountType,
+        discountValue: couponValidation.coupon.discountValue,
+      };
+    }
+
+    const total = Math.max(0, subtotal + normalizedShippingFee + normalizedTax - discount);
+
+    const orderPayload = {
       orderNumber: this.generateOrderNumber(),
       userId,
       status: 'pending',
       paymentStatus: 'pending',
       paymentMethod: finalPaymentMethod,
       subtotal,
-      tax: parseFloat(tax),
-      shippingFee: parseFloat(finalShippingFee),
-      discount: parseFloat(discount),
+      tax: normalizedTax,
+      shippingFee: normalizedShippingFee,
+      discount,
       total,
       shippingAddress: finalShippingAddress,
       billingAddress: finalBillingAddress || finalShippingAddress,
       notes: notes || null,
-    });
+      ...(appliedCoupon ? { coupon: appliedCoupon } : {}),
+    };
+
+    const order = await Order.create(orderPayload);
 
     for (const itemData of orderItemsData) {
       await OrderItem.create({
