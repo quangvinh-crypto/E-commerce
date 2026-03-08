@@ -36,6 +36,12 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const completeGoogleLogin = async (token) => {
+    const data = await authService.handleGoogleCallback(token);
+    setUser(data.user);
+    return data;
+  };
+
   const logout = () => {
     authService.logout();
     setUser(null);
@@ -58,6 +64,7 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     register,
+    completeGoogleLogin,
     logout,
     updateUser,
     hasRole,

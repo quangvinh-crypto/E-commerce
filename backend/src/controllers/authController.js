@@ -1,6 +1,13 @@
 const { validationResult } = require('express-validator');
 const authService = require('../services/authService');
 
+const sanitizeRedirectPath = (rawRedirect) => {
+  if (!rawRedirect || typeof rawRedirect !== 'string') return '';
+  if (!rawRedirect.startsWith('/')) return '';
+  if (rawRedirect.startsWith('//')) return '';
+  return rawRedirect;
+};
+
 class AuthController {
   // @desc    Register user
   // @route   POST /api/auth/register
@@ -135,10 +142,15 @@ class AuthController {
   async googleCallback(req, res, next) {
     try {
       const result = await authService.googleAuth(req.user);
+      const redirect = sanitizeRedirectPath(req.query.state);
       
       // Redirect to frontend with token
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      res.redirect(`${frontendUrl}/auth/callback?token=${result.token}`);
+      const query = new URLSearchParams({ token: result.token });
+      if (redirect) {
+        query.append('redirect', redirect);
+      }
+      res.redirect(`${frontendUrl}/auth/callback?${query.toString()}`);
     } catch (error) {
       next(error);
     }

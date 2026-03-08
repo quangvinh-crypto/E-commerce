@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Button, Input } from '../../components/common';
+import { Button, GoogleIcon, Input } from '../../components/common';
+import authService from '../../services/authService';
 import toast from 'react-hot-toast';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get('redirect') || null;
+  const oauthStatus = searchParams.get('oauth');
   const { login, isAuthenticated, user } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -22,6 +24,12 @@ const LoginPage = () => {
       }
     }
   }, [isAuthenticated, user, navigate, redirect]);
+
+  useEffect(() => {
+    if (oauthStatus === 'failed') {
+      toast.error('Đăng nhập Google thất bại');
+    }
+  }, [oauthStatus]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,6 +57,10 @@ const LoginPage = () => {
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleGoogleLogin = () => {
+    authService.loginWithGoogle(redirect || '');
   };
 
   return (
@@ -82,6 +94,21 @@ const LoginPage = () => {
             {isLoading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
           </Button>
         </form>
+
+        <div className="my-6 flex items-center">
+          <div className="h-px flex-1 bg-zinc-700" />
+          <span className="px-3 text-xs text-gray-500 uppercase tracking-wider">hoặc</span>
+          <div className="h-px flex-1 bg-zinc-700" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="w-full inline-flex items-center justify-center gap-3 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-gray-100 font-semibold hover:bg-zinc-700 transition-all duration-300"
+        >
+          <GoogleIcon />
+          Tiếp tục với Google
+        </button>
 
         <div className="mt-6 text-center">
           <p className="text-gray-400">
