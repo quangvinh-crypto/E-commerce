@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Button, Input } from '../../components/common';
+import { Button, GoogleIcon, Input } from '../../components/common';
 import authService from '../../services/authService';
 import toast from 'react-hot-toast';
 
@@ -60,6 +60,10 @@ const RegisterPage = () => {
     if (errors[e.target.name]) setErrors((prev) => ({ ...prev, [e.target.name]: '' }));
   };
 
+  const handleGoogleRegister = () => {
+    authService.loginWithGoogle();
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-zinc-900 rounded-2xl shadow-xl p-8 border border-zinc-800">
@@ -109,6 +113,21 @@ const RegisterPage = () => {
             {isLoading ? 'Đang đăng ký...' : 'Đăng Ký'}
           </Button>
         </form>
+
+        <div className="my-6 flex items-center">
+          <div className="h-px flex-1 bg-zinc-700" />
+          <span className="px-3 text-xs text-gray-500 uppercase tracking-wider">hoặc</span>
+          <div className="h-px flex-1 bg-zinc-700" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleRegister}
+          className="w-full inline-flex items-center justify-center gap-3 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-gray-100 font-semibold hover:bg-zinc-700 transition-all duration-300"
+        >
+          <GoogleIcon />
+          Đăng ký nhanh với Google
+        </button>
 
         <div className="mt-6 text-center">
           <p className="text-gray-400">

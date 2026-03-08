@@ -5,6 +5,7 @@ const { auth } = require('../middleware/auth');
 const { registerValidator, loginValidator } = require('../validators/authValidator');
 
 const router = express.Router();
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
@@ -39,15 +40,19 @@ router.post('/logout', auth, authController.logout);
 // @route   GET /api/auth/google
 // @desc    Google OAuth login
 // @access  Public
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-}));
+router.get('/google', (req, res, next) => {
+  const redirect = req.query.redirect || '';
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: redirect,
+  })(req, res, next);
+});
 
 // @route   GET /api/auth/google/callback
 // @desc    Google OAuth callback
 // @access  Public
 router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+  passport.authenticate('google', { session: false, failureRedirect: `${frontendUrl}/login?oauth=failed` }),
   authController.googleCallback
 );
 

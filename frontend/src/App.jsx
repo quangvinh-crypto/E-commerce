@@ -9,7 +9,7 @@ import { ManagementLayout } from './components/layout';
 import { ProtectedRoute, LoadingSpinner } from './components/common';
 
 // Auth pages
-import { LoginPage, RegisterPage, NotFoundPage } from './pages/auth';
+import { LoginPage, RegisterPage, AuthCallbackPage, NotFoundPage } from './pages/auth';
 
 // Admin pages
 import { AdminDashboard, UserManagement, CreateUser, OrderManagement } from './pages/Admin';
@@ -108,6 +108,7 @@ function App() {
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
         {/* Customer routes - Public */}
         <Route path="/products" element={<ProductListingPage />} />
