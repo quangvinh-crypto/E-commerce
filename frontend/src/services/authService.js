@@ -1,6 +1,12 @@
 import api from './api';
 
 const normalizeRole = (role) => String(role || '').trim().toLowerCase();
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+const getBackendAuthGoogleUrl = (redirect = '') => {
+  const query = redirect ? `?redirect=${encodeURIComponent(redirect)}` : '';
+  return `${API_URL}/auth/google${query}`;
+};
 
 const normalizeUser = (user) => {
   if (!user || typeof user !== 'object') return user;
@@ -33,6 +39,32 @@ const authService = {
       response.data.data.user = normalizedUser;
     }
     return response.data;
+  },
+
+  loginWithGoogle: (redirect = '') => {
+    window.location.href = getBackendAuthGoogleUrl(redirect);
+  },
+
+  handleGoogleCallback: async (token) => {
+    if (!token) {
+      throw new Error('Missing Google token');
+    }
+
+    localStorage.setItem('token', token);
+    const response = await api.get('/auth/me');
+    if (!response.data?.success || !response.data?.data) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      throw new Error('Invalid user data from Google callback');
+    }
+
+    const normalizedUser = normalizeUser(response.data.data);
+    localStorage.setItem('user', JSON.stringify(normalizedUser));
+
+    return {
+      token,
+      user: normalizedUser,
+    };
   },
 
   // Logout user
