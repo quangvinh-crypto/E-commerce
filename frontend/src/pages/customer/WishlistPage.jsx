@@ -1,27 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Trash2, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { getImageUrl } from '../../utils/imageHelper';
-import productService from '../../services/productService';
-import wishlistService from '../../services/wishlistService';
 import toast from 'react-hot-toast';
 
 const WishlistPage = () => {
-  const { wishlist, removeFromWishlist, clearWishlist, loadWishlist } = useWishlist();
-  const { user } = useAuth();
+  const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
   const { addToCart } = useCart();
   const [removing, setRemoving] = useState(null);
-  const [isHydratingImages, setIsHydratingImages] = useState(false);
 
-  const handleRemove = (productId) => {
+  const handleRemove = async (productId) => {
     setRemoving(productId);
-    const result = removeFromWishlist(productId);
+    const result = await removeFromWishlist(productId);
     if (result.success) {
-      toast.success('Đã xóa khỏi yêu thích');
+      toast.success(result.message);
     }
     setRemoving(null);
   };
@@ -35,13 +30,14 @@ const WishlistPage = () => {
       images: product.images,
       quantity: 1,
     });
-    toast.success('Đã thêm vào giỏ hàng');
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (window.confirm('Bạn có chắc muốn xóa tất cả sản phẩm yêu thích?')) {
-      clearWishlist();
-      toast.success('Đã xóa tất cả');
+      const result = await clearWishlist();
+      if (result.success) {
+        toast.success(result.message);
+      }
     }
   };
 
@@ -61,52 +57,6 @@ const WishlistPage = () => {
     }
     return 'https://via.placeholder.com/400?text=No+Image';
   };
-
-  useEffect(() => {
-    if (isHydratingImages || wishlist.length === 0) return;
-
-    const missingImageItems = wishlist.filter((item) => {
-      const hasImages = Array.isArray(item.images) && item.images.length > 0;
-      return !hasImages && !item.image_url;
-    });
-
-    if (missingImageItems.length === 0) return;
-
-    let cancelled = false;
-
-    const hydrateImages = async () => {
-      setIsHydratingImages(true);
-      try {
-        await Promise.all(
-          missingImageItems.map(async (item) => {
-            try {
-                const response = await productService.getProductById(item.id);
-                const product = response?.data;
-                if (product) {
-                  wishlistService.upsertWishlistItem(product, user?.id || 'guest');
-                }
-              } catch (_) {
-                // Skip broken products in wishlist hydration
-            }
-          })
-        );
-
-        if (!cancelled) {
-          loadWishlist();
-        }
-      } finally {
-        if (!cancelled) {
-          setIsHydratingImages(false);
-        }
-      }
-    };
-
-    hydrateImages();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [wishlist, isHydratingImages, loadWishlist, user?.id]);
 
   return (
     <CustomerLayout>

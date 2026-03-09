@@ -24,7 +24,7 @@ const ProductCard = ({ product }) => {
     addToCart(product, 1);
   };
 
-  const handleToggleWishlist = (e) => {
+  const handleToggleWishlist = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!isAuthenticated) {
@@ -33,11 +33,15 @@ const ProductCard = ({ product }) => {
       return;
     }
     if (isInWishlist(product.id)) {
-      removeFromWishlist(product.id);
-      toast.success('Đã xóa khỏi yêu thích');
+      const result = await removeFromWishlist(product.id);
+      if (result.success) {
+        toast.success(result.message);
+      }
     } else {
-      addToWishlist(product);
-      toast.success('Đã thêm vào yêu thích');
+      const result = await addToWishlist(product);
+      if (result.success) {
+        toast.success(result.message);
+      }
     }
   };
 
