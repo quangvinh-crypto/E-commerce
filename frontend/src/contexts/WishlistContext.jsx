@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import wishlistService from '../services/wishlistService';
 import { useAuth } from './AuthContext';
+import toast from 'react-hot-toast';
 
 const WishlistContext = createContext();
 
@@ -13,52 +14,95 @@ export const useWishlist = () => {
 };
 
 export const WishlistProvider = ({ children }) => {
-  const { user } = useAuth();
-  const userId = user?.id || 'guest';
+  const { isAuthenticated } = useAuth();
   const [wishlist, setWishlist] = useState([]);
   const [wishlistCount, setWishlistCount] = useState(0);
+
   const wishlistIdSet = useMemo(
     () => new Set(wishlist.map((item) => String(item.id))),
     [wishlist]
   );
 
-  const loadWishlist = useCallback(() => {
-    const items = wishlistService.getWishlist(userId);
-    setWishlist(items);
-    setWishlistCount(items.length);
-  }, [userId]);
+  const loadWishlist = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWishlist([]);
+      setWishlistCount(0);
+      return;
+    }
+
+    try {
+      const response = await wishlistService.getWishlist();
+      const items = Array.isArray(response?.data) ? response.data : [];
+      setWishlist(items);
+      setWishlistCount(items.length);
+    } catch (_) {
+      setWishlist([]);
+      setWishlistCount(0);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     loadWishlist();
   }, [loadWishlist]);
 
-  const addToWishlist = (product) => {
-    const result = wishlistService.addToWishlist(product, userId);
-    if (result.success) {
-      loadWishlist();
+  const addToWishlist = useCallback(async (product) => {
+    if (!isAuthenticated) {
+      return { success: false, message: 'Vui lòng đăng nhập để thêm vào yêu thích' };
     }
-    return result;
-  };
 
-  const removeFromWishlist = (productId) => {
-    const result = wishlistService.removeFromWishlist(productId, userId);
-    if (result.success) {
-      loadWishlist();
+    try {
+      const response = await wishlistService.addToWishlist(product.id);
+      const items = Array.isArray(response?.data) ? response.data : [];
+      setWishlist(items);
+      setWishlistCount(items.length);
+      return { success: true, message: 'Đã thêm vào yêu thích' };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Không thể thêm vào yêu thích';
+      toast.error(message);
+      return { success: false, message };
     }
-    return result;
-  };
+  }, [isAuthenticated]);
+
+  const removeFromWishlist = useCallback(async (productId) => {
+    if (!isAuthenticated) {
+      return { success: false, message: 'Vui lòng đăng nhập để thao tác' };
+    }
+
+    try {
+      const response = await wishlistService.removeFromWishlist(productId);
+      const items = Array.isArray(response?.data) ? response.data : [];
+      setWishlist(items);
+      setWishlistCount(items.length);
+      return { success: true, message: 'Đã xóa khỏi yêu thích' };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Không thể xóa khỏi yêu thích';
+      toast.error(message);
+      return { success: false, message };
+    }
+  }, [isAuthenticated]);
 
   const isInWishlist = (productId) => {
     return wishlistIdSet.has(String(productId));
   };
 
-  const clearWishlist = () => {
-    const result = wishlistService.clearWishlist(userId);
-    if (result.success) {
-      loadWishlist();
+  const clearWishlist = useCallback(async () => {
+    if (!isAuthenticated) {
+      setWishlist([]);
+      setWishlistCount(0);
+      return { success: true, message: 'Đã xóa tất cả' };
     }
-    return result;
-  };
+
+    try {
+      await wishlistService.clearWishlist();
+      setWishlist([]);
+      setWishlistCount(0);
+      return { success: true, message: 'Đã xóa tất cả' };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Không thể xóa danh sách yêu thích';
+      toast.error(message);
+      return { success: false, message };
+    }
+  }, [isAuthenticated]);
 
   return (
     <WishlistContext.Provider

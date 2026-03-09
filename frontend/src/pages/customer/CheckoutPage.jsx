@@ -128,7 +128,7 @@ const CheckoutPage = () => {
           }
         } else {
           toast.success('Đặt hàng thành công!');
-          clearCart();
+          await clearCart({ silent: true });
           navigate('/profile/orders');
         }
       }

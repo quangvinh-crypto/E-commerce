@@ -4,7 +4,7 @@ const ProductController = require('../controllers/ProductController');
 const ReviewController = require('../controllers/ReviewController');
 const { uploadMultiple, handleMulterError } = require('../middleware/upload');
 const cacheResponse = require('../middleware/cacheResponse');
-const { auth, isStaff, isCustomer } = require('../middleware/auth');
+const { auth, isStaff, isCustomer, optionalAuth } = require('../middleware/auth');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
 const { upsertReviewValidation } = require('./reviewRoutes');
@@ -65,7 +65,16 @@ const idParamValidation = [
 // ============================================
 router.get(
   '/',
-  cacheResponse({ scope: 'products:list', ttlSeconds: 120 }),
+  optionalAuth,
+  cacheResponse({
+    scope: 'products:list',
+    ttlSeconds: 120,
+    payloadBuilder: (req) => ({
+      path: req.path,
+      query: req.query,
+      role: req.user?.role || 'customer',
+    }),
+  }),
   ProductController.getAllProducts
 );
 router.get(

@@ -139,18 +139,22 @@ const ProductDetailPage = () => {
     navigate('/cart');
   };
 
-  const handleToggleWishlist = () => {
+  const handleToggleWishlist = async () => {
     if (!isAuthenticated) {
       toast.error('Vui lòng đăng nhập để thêm vào yêu thích');
       navigate(`/login?redirect=/products/${id}`);
       return;
     }
     if (product && isInWishlist(product.id)) {
-      removeFromWishlist(product.id);
-      toast.success('Đã xóa khỏi yêu thích');
+      const result = await removeFromWishlist(product.id);
+      if (result.success) {
+        toast.success(result.message);
+      }
     } else if (product) {
-      addToWishlist(product);
-      toast.success('Đã thêm vào yêu thích');
+      const result = await addToWishlist(product);
+      if (result.success) {
+        toast.success(result.message);
+      }
     }
   };
 

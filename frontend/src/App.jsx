@@ -147,8 +147,6 @@ function App() {
           <Route path="inventory" element={<InventoryManagement />} />
           <Route path="reviews" element={<ReviewManagement />} />
           <Route path="coupons" element={<CouponManagement />} />
-          <Route path="reports" element={<div className="p-6">Báo cáo (Sắp ra mắt)</div>} />
-          <Route path="settings" element={<div className="p-6">Cài đặt (Sắp ra mắt)</div>} />
         </Route>
 
         {/* Staff routes */}
