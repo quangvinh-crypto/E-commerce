@@ -21,7 +21,10 @@ const ProductCard = ({ product }) => {
       navigate(`/login?redirect=/products/${product.id}`);
       return;
     }
-    addToCart(product, 1);
+    const defaultVariant = Array.isArray(product.variants)
+      ? product.variants.find((variant) => variant.isActive !== false && Number(variant.quantity || 0) > 0)
+      : null;
+    addToCart(product, 1, { variantId: defaultVariant?.id || defaultVariant?._id || null });
   };
 
   const handleToggleWishlist = async (e) => {

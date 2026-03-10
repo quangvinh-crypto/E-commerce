@@ -11,6 +11,8 @@ const CartPage = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const getItemId = (item) => item.id || item._id || item.productId || item.product_id;
+  const getVariantId = (item) => item.variantId || item.variant?.id || null;
+  const getItemKey = (item) => `${getItemId(item) || ''}::${getVariantId(item) || ''}`;
   const getItemUnitPrice = (item) => {
     const discountPrice = Number(item.discount_price);
     const price = Number(item.price);
@@ -60,18 +62,18 @@ const CartPage = () => {
               <div className="hidden md:grid grid-cols-12 gap-4 p-4 bg-zinc-950 border-b border-gray-800 font-medium text-gray-400"><div className="col-span-6">Sản phẩm</div><div className="col-span-2 text-center">Đơn giá</div><div className="col-span-2 text-center">Số lượng</div><div className="col-span-2 text-right">Thành tiền</div></div>
               <div className="divide-y divide-gray-800">
                 {cart.map((item) => (
-                  <div key={getItemId(item)} className="p-4">
+                  <div key={getItemKey(item)} className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                      <div className="md:col-span-6 flex gap-4"><img src={getCartItemImage(item)} alt={item.name} className="w-20 h-20 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://via.placeholder.com/100?text=No+Image'; }} /><div className="flex-1"><Link to={`/products/${getItemId(item)}`} className="font-medium text-gray-100 hover:text-amber-500 line-clamp-2">{item.name}</Link><p className="text-sm text-gray-500 mt-1">{item.category_name}</p></div></div>
+                      <div className="md:col-span-6 flex gap-4"><img src={getCartItemImage(item)} alt={item.name} className="w-20 h-20 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://via.placeholder.com/100?text=No+Image'; }} /><div className="flex-1"><Link to={`/products/${getItemId(item)}`} className="font-medium text-gray-100 hover:text-amber-500 line-clamp-2">{item.name}</Link>{item.variant && <p className="text-sm text-gray-400 mt-1">{item.variant.color} / {item.variant.storage}</p>}<p className="text-sm text-gray-500 mt-1">{item.category_name}</p></div></div>
                       <div className="md:col-span-2 text-center"><span className="font-medium text-gray-300">{getItemUnitPrice(item).toLocaleString('vi-VN')}₫</span></div>
                       <div className="md:col-span-2 flex justify-center">
                         <div className="flex items-center bg-zinc-800 border border-gray-700 rounded-lg">
-                          <button onClick={() => updateQuantity(getItemId(item), item.quantity - 1)} className="p-2 text-gray-400 hover:text-gray-100"><Minus size={16} /></button>
-                          <input type="number" value={item.quantity} onChange={(e) => updateQuantity(getItemId(item), parseInt(e.target.value) || 1)} className="w-12 text-center bg-transparent text-gray-100 border-x border-gray-700" />
-                          <button onClick={() => updateQuantity(getItemId(item), item.quantity + 1)} className="p-2 text-gray-400 hover:text-gray-100"><Plus size={16} /></button>
+                          <button onClick={() => updateQuantity(getItemId(item), item.quantity - 1, getVariantId(item))} className="p-2 text-gray-400 hover:text-gray-100"><Minus size={16} /></button>
+                          <input type="number" value={item.quantity} onChange={(e) => updateQuantity(getItemId(item), parseInt(e.target.value) || 1, getVariantId(item))} className="w-12 text-center bg-transparent text-gray-100 border-x border-gray-700" />
+                          <button onClick={() => updateQuantity(getItemId(item), item.quantity + 1, getVariantId(item))} className="p-2 text-gray-400 hover:text-gray-100"><Plus size={16} /></button>
                         </div>
                       </div>
-                      <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-4"><span className="font-semibold text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</span><button onClick={() => removeFromCart(getItemId(item))} className="text-red-500 hover:text-red-400"><Trash2 size={20} /></button></div>
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-4"><span className="font-semibold text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</span><button onClick={() => removeFromCart(getItemId(item), getVariantId(item))} className="text-red-500 hover:text-red-400"><Trash2 size={20} /></button></div>
                     </div>
                   </div>
                 ))}

@@ -16,8 +16,8 @@ class CartController {
 
   async addToCart(req, res, next) {
     try {
-      const { productId, quantity = 1 } = req.body;
-      const cart = await CartService.addItem(req.user.id, productId, quantity);
+      const { productId, quantity = 1, variantId } = req.body;
+      const cart = await CartService.addItem(req.user.id, productId, quantity, variantId);
 
       res.status(200).json({
         success: true,
@@ -32,8 +32,8 @@ class CartController {
   async updateCartItem(req, res, next) {
     try {
       const { productId } = req.params;
-      const { quantity } = req.body;
-      const cart = await CartService.updateItemQuantity(req.user.id, productId, quantity);
+      const { quantity, variantId } = req.body;
+      const cart = await CartService.updateItemQuantity(req.user.id, productId, quantity, variantId);
 
       res.status(200).json({
         success: true,
@@ -48,7 +48,8 @@ class CartController {
   async removeCartItem(req, res, next) {
     try {
       const { productId } = req.params;
-      const cart = await CartService.removeItem(req.user.id, productId);
+      const { variantId } = req.query;
+      const cart = await CartService.removeItem(req.user.id, productId, variantId);
 
       res.status(200).json({
         success: true,

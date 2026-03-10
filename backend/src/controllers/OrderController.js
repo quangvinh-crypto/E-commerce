@@ -159,7 +159,7 @@ class OrderController {
           .sort({ [sortField]: sortDirection })
           .skip((parsedPage - 1) * parsedLimit)
           .limit(parsedLimit)
-          .populate({ path: 'items', select: 'productId productName productImage price quantity subtotal total' })
+          .populate({ path: 'items', select: 'productId variantId variantColor variantStorage productName productImage price quantity subtotal total' })
           .populate({ path: 'user', select: 'name email' }),
       ]);
 

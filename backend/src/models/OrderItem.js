@@ -14,6 +14,26 @@ const OrderItemSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      index: true,
+    },
+    variantColor: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    variantStorage: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    variantSku: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     productName: {
       type: String,
       required: true,
@@ -57,6 +77,7 @@ const OrderItemSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         ret.orderId = ret.orderId?.toString ? ret.orderId.toString() : ret.orderId;
         ret.productId = ret.productId?.toString ? ret.productId.toString() : ret.productId;
+        ret.variantId = ret.variantId?.toString ? ret.variantId.toString() : ret.variantId;
         delete ret._id;
         delete ret.__v;
         return ret;

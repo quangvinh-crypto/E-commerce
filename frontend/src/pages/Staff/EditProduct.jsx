@@ -28,6 +28,13 @@ const defaultSpecFields = [
   { key: 'warranty', label: 'Bảo hành', placeholder: '12 tháng, 24 tháng...' },
 ];
 
+const defaultVariantColors = [
+  { name: 'Cam', hex: '#f59e0b' },
+  { name: 'Trang', hex: '#f8fafc' },
+];
+
+const defaultVariantStorages = ['256GB', '512GB', '1TB'];
+
 const defaultSpecKeys = defaultSpecFields.map((f) => f.key);
 
 const EditProduct = () => {
@@ -50,6 +57,9 @@ const EditProduct = () => {
   const [existingImages, setExistingImages] = useState([]);
   const [primaryImage, setPrimaryImage] = useState(null);
   const [detailImages, setDetailImages] = useState([]);
+  const [variantColors, setVariantColors] = useState(defaultVariantColors);
+  const [variantStorages, setVariantStorages] = useState(defaultVariantStorages);
+  const [variants, setVariants] = useState([]);
   const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
 
   const { data: productData, isLoading: isLoadingProduct } = useQuery(
@@ -92,6 +102,41 @@ const EditProduct = () => {
       }
     }
 
+    let parsedVariantColors = defaultVariantColors;
+    let parsedVariantStorages = defaultVariantStorages;
+
+    if (typeof specs.variantColors === 'string') {
+      try {
+        const nextColors = JSON.parse(specs.variantColors);
+        if (Array.isArray(nextColors) && nextColors.length > 0) {
+          parsedVariantColors = nextColors
+            .map((item) => ({
+              name: String(item?.name || '').trim(),
+              hex: String(item?.hex || '').trim(),
+            }))
+            .filter((item) => item.name && item.hex);
+        }
+      } catch (_) {
+        parsedVariantColors = defaultVariantColors;
+      }
+    }
+
+    if (typeof specs.variantStorages === 'string') {
+      try {
+        const nextStorages = JSON.parse(specs.variantStorages);
+        if (Array.isArray(nextStorages) && nextStorages.length > 0) {
+          parsedVariantStorages = nextStorages
+            .map((value) => String(value || '').trim())
+            .filter(Boolean);
+        }
+      } catch (_) {
+        parsedVariantStorages = defaultVariantStorages;
+      }
+    }
+
+    delete specs.variantColors;
+    delete specs.variantStorages;
+
     const defaultSpecs = {};
     const customSpecsList = [];
 
@@ -106,6 +151,19 @@ const EditProduct = () => {
     setSpecifications(defaultSpecs);
     setCustomSpecs(customSpecsList);
     setShowAllSpecs(Object.keys(specs).length > 8);
+    setVariantColors(parsedVariantColors.length > 0 ? parsedVariantColors : defaultVariantColors);
+    setVariantStorages(parsedVariantStorages.length > 0 ? parsedVariantStorages : defaultVariantStorages);
+    const productVariants = Array.isArray(product.variants)
+      ? product.variants.map((variant) => ({
+          id: variant.id || variant._id,
+          color: variant.color || '',
+          colorHex: variant.colorHex || '#737373',
+          storage: variant.storage || '',
+          price: variant.price ?? '',
+          quantity: variant.quantity ?? '',
+        }))
+      : [];
+    setVariants(productVariants);
     setExistingImages(Array.isArray(product.images) ? product.images : []);
     setPrimaryImage(null);
     setDetailImages([]);
@@ -148,6 +206,10 @@ const EditProduct = () => {
     if (!formData.name.trim()) newErrors.name = 'Tên sản phẩm không được để trống';
     if (!formData.price || formData.price <= 0) newErrors.price = 'Giá phải lớn hơn 0';
     if (formData.quantity < 0) newErrors.quantity = 'Số lượng không được âm';
+    if (!variants.length) newErrors.variants = 'Vui lòng tạo ít nhất 1 biến thể màu/dung lượng';
+    if (variants.some((variant) => !variant.color || !variant.storage || Number(variant.price) <= 0 || Number(variant.quantity) < 0)) {
+      newErrors.variants = 'Biến thể phải có màu, dung lượng, giá > 0 và tồn kho >= 0';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -163,6 +225,25 @@ const EditProduct = () => {
       }
     });
 
+    const sanitizedColors = variantColors
+      .map((item) => ({
+        name: String(item.name || '').trim(),
+        hex: String(item.hex || '').trim(),
+      }))
+      .filter((item) => item.name && item.hex);
+
+    const sanitizedStorages = variantStorages
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+
+    if (sanitizedColors.length > 0) {
+      allSpecs.variantColors = JSON.stringify(sanitizedColors);
+    }
+
+    if (sanitizedStorages.length > 0) {
+      allSpecs.variantStorages = JSON.stringify(sanitizedStorages);
+    }
+
     const filteredSpecs = Object.fromEntries(
       Object.entries(allSpecs).filter(([_, v]) => {
         if (v === undefined || v === null) return false;
@@ -176,6 +257,14 @@ const EditProduct = () => {
       quantity: parseInt(formData.quantity) || 0,
       categoryId: formData.categoryId || null,
       specifications: Object.keys(filteredSpecs).length > 0 ? filteredSpecs : null,
+      variants: variants.map((variant) => ({
+        id: variant.id,
+        color: variant.color,
+        colorHex: variant.colorHex,
+        storage: variant.storage,
+        price: Number(variant.price) || 0,
+        quantity: Number(variant.quantity) || 0,
+      })),
       primaryImage,
       detailImages,
     };
@@ -210,6 +299,76 @@ const EditProduct = () => {
 
   const removeCustomSpec = (index) => {
     setCustomSpecs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addVariantColor = () => {
+    setVariantColors((prev) => [...prev, { name: '', hex: '#000000' }]);
+  };
+
+  const updateVariantColor = (index, field, value) => {
+    setVariantColors((prev) => {
+      const updated = [...prev];
+      updated[index][field] = value;
+      return updated;
+    });
+  };
+
+  const removeVariantColor = (index) => {
+    setVariantColors((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addVariantStorage = () => {
+    setVariantStorages((prev) => [...prev, '']);
+  };
+
+  const updateVariantStorage = (index, value) => {
+    setVariantStorages((prev) => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
+
+  const removeVariantStorage = (index) => {
+    setVariantStorages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const buildVariantsFromOptions = () => {
+    const colors = variantColors
+      .map((item) => ({ name: String(item.name || '').trim(), hex: String(item.hex || '').trim() }))
+      .filter((item) => item.name && item.hex);
+    const storages = variantStorages.map((item) => String(item || '').trim()).filter(Boolean);
+
+    const generated = colors.flatMap((color) =>
+      storages.map((storage) => {
+        const existing = variants.find((variant) => variant.color === color.name && variant.storage === storage);
+        return {
+          id: existing?.id,
+          color: color.name,
+          colorHex: color.hex,
+          storage,
+          price: existing?.price || formData.price || '',
+          quantity: existing?.quantity || '',
+        };
+      })
+    );
+
+    setVariants(generated);
+    if (generated.length > 0 && errors.variants) {
+      setErrors((prev) => ({ ...prev, variants: '' }));
+    }
+  };
+
+  const updateVariant = (index, field, value) => {
+    setVariants((prev) => {
+      const updated = [...prev];
+      updated[index][field] = value;
+      return updated;
+    });
+  };
+
+  const removeVariant = (index) => {
+    setVariants((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handlePrimaryImageChange = (e) => {
@@ -400,6 +559,126 @@ const EditProduct = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Tuy chon bien the (preview)</h2>
+
+              <div className="mb-5">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Bang mau theo dong may</p>
+                <div className="space-y-2">
+                  {variantColors.map((color, idx) => (
+                    <div key={`color-${idx}`} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={color.name}
+                        onChange={(e) => updateVariantColor(idx, 'name', e.target.value)}
+                        className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                        placeholder="Ten mau (vd: Cam titan)"
+                      />
+                      <input
+                        type="color"
+                        value={color.hex || '#000000'}
+                        onChange={(e) => updateVariantColor(idx, 'hex', e.target.value)}
+                        className="w-12 h-10 border rounded-lg p-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeVariantColor(idx)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addVariantColor}
+                  className="mt-3 flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm font-medium"
+                >
+                  <Plus size={16} /> Them mau
+                </button>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-2">Dung luong theo dong may</p>
+                <div className="space-y-2">
+                  {variantStorages.map((storage, idx) => (
+                    <div key={`storage-${idx}`} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={storage}
+                        onChange={(e) => updateVariantStorage(idx, e.target.value)}
+                        className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                        placeholder="VD: 256GB, 512GB, 1TB"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeVariantStorage(idx)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addVariantStorage}
+                  className="mt-3 flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm font-medium"
+                >
+                  <Plus size={16} /> Them dung luong
+                </button>
+              </div>
+
+              <div className="mt-5 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={buildVariantsFromOptions}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600"
+                >
+                  Tao bang bien the
+                </button>
+
+                {variants.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {variants.map((variant, idx) => (
+                      <div key={`${variant.color}-${variant.storage}-${idx}`} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border">
+                        <div className="md:col-span-3 flex items-center gap-2 text-sm text-gray-700">
+                          <span className="w-5 h-5 rounded-full border" style={{ backgroundColor: variant.colorHex }}></span>
+                          <span>{variant.color}</span>
+                        </div>
+                        <div className="md:col-span-3 text-sm text-gray-700">{variant.storage}</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={variant.price}
+                          onChange={(e) => updateVariant(idx, 'price', e.target.value)}
+                          className="md:col-span-2 border rounded-lg px-2 py-1 text-sm"
+                          placeholder="Gia"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          value={variant.quantity}
+                          onChange={(e) => updateVariant(idx, 'quantity', e.target.value)}
+                          className="md:col-span-2 border rounded-lg px-2 py-1 text-sm"
+                          placeholder="Ton kho"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeVariant(idx)}
+                          className="md:col-span-2 p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {errors.variants && <p className="text-red-500 text-sm mt-2">{errors.variants}</p>}
               </div>
             </div>
 

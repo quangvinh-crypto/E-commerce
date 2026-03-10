@@ -13,6 +13,10 @@ const createOrderValidation = [
   body('items.*.productId')
     .isMongoId()
     .withMessage('Product ID must be a valid MongoDB ObjectId'),
+  body('items.*.variantId')
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage('Variant ID must be a valid MongoDB ObjectId'),
   body('items.*.quantity')
     .isInt({ min: 1 })
     .withMessage('Quantity must be at least 1'),
