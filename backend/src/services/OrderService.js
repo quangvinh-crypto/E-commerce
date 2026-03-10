@@ -31,6 +31,7 @@ class OrderService {
 
     const transformedItems = (items || []).map((item) => ({
       productId: item.productId || item.product_id,
+      variantId: item.variantId || item.variant_id || null,
       quantity: Number(item.quantity),
     }));
 
@@ -49,11 +50,11 @@ class OrderService {
     const products = await Product.find({ _id: { $in: uniqueProductIds } });
     const productMap = new Map(products.map((product) => [String(product.id), product]));
 
-    const requiredQtyByProduct = new Map();
+    const requiredQtyByVariant = new Map();
     transformedItems.forEach((item) => {
-      const key = String(item.productId || '');
-      const current = requiredQtyByProduct.get(key) || 0;
-      requiredQtyByProduct.set(key, current + (Number.isFinite(item.quantity) ? item.quantity : 0));
+      const key = `${String(item.productId || '')}::${String(item.variantId || '')}`;
+      const current = requiredQtyByVariant.get(key) || 0;
+      requiredQtyByVariant.set(key, current + (Number.isFinite(item.quantity) ? item.quantity : 0));
     });
 
     let subtotal = 0;
@@ -73,19 +74,37 @@ class OrderService {
         throw new Error(`Product ${product.name} is not available`);
       }
 
-      const totalRequired = requiredQtyByProduct.get(String(item.productId)) || 0;
-      if (product.quantity < totalRequired) {
-        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.quantity}, Requested: ${totalRequired}`);
+      let selectedVariant = null;
+      if (item.variantId) {
+        selectedVariant = (product.variants || []).find(
+          (variant) => String(variant._id) === String(item.variantId) && variant.isActive !== false
+        );
+        if (!selectedVariant) {
+          throw new Error(`Variant not found for ${product.name}`);
+        }
+      } else if (Array.isArray(product.variants) && product.variants.length > 0) {
+        selectedVariant = product.variants.find((variant) => variant.isActive !== false) || product.variants[0];
       }
 
-      const itemPrice = parseFloat(product.price);
+      const stockKey = `${String(item.productId || '')}::${String(selectedVariant?._id || item.variantId || '')}`;
+      const totalRequired = requiredQtyByVariant.get(stockKey) || 0;
+      const availableStock = selectedVariant ? Number(selectedVariant.quantity || 0) : Number(product.quantity || 0);
+      if (availableStock < totalRequired) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${availableStock}, Requested: ${totalRequired}`);
+      }
+
+      const itemPrice = parseFloat(selectedVariant?.price ?? product.price);
       const itemSubtotal = itemPrice * item.quantity;
       subtotal += itemSubtotal;
 
       orderItemsData.push({
         productId: product.id,
+        variantId: selectedVariant?._id || null,
+        variantColor: selectedVariant?.color || null,
+        variantStorage: selectedVariant?.storage || null,
+        variantSku: selectedVariant?.sku || null,
         productName: product.name,
-        productImage: product.images?.[0]?.url || null,
+        productImage: selectedVariant?.images?.[0]?.url || product.images?.[0]?.url || null,
         price: itemPrice,
         quantity: item.quantity,
         subtotal: itemSubtotal,
@@ -138,15 +157,38 @@ class OrderService {
       }))
     );
 
-    const stockOps = Array.from(requiredQtyByProduct.entries()).map(([productId, quantity]) => ({
-      updateOne: {
-        filter: { _id: productId },
-        update: { $inc: { quantity: -quantity } },
-      },
-    }));
+    for (const [stockKey, requiredQty] of requiredQtyByVariant.entries()) {
+      const [productId, variantId] = stockKey.split('::');
+      if (!productId) continue;
 
-    if (stockOps.length > 0) {
-      await Product.bulkWrite(stockOps);
+      if (variantId) {
+        const updateResult = await Product.updateOne(
+          {
+            _id: productId,
+            'variants._id': variantId,
+            'variants.quantity': { $gte: requiredQty },
+          },
+          {
+            $inc: {
+              'variants.$.quantity': -requiredQty,
+              quantity: -requiredQty,
+            },
+          }
+        );
+
+        if (!updateResult.modifiedCount) {
+          throw new Error('Failed to reserve stock for selected variant');
+        }
+      } else {
+        const updateResult = await Product.updateOne(
+          { _id: productId, quantity: { $gte: requiredQty } },
+          { $inc: { quantity: -requiredQty } }
+        );
+
+        if (!updateResult.modifiedCount) {
+          throw new Error('Failed to reserve stock for product');
+        }
+      }
     }
 
     return this.getOrderById(order.id, userId);
@@ -168,7 +210,7 @@ class OrderService {
         .sort({ [sortBy]: sortDirection })
         .skip((parsedPage - 1) * parsedLimit)
         .limit(parsedLimit)
-        .populate({ path: 'items', select: 'productId productName productImage price quantity subtotal total' }),
+        .populate({ path: 'items', select: 'productId variantId variantColor variantStorage productName productImage price quantity subtotal total' }),
       Order.countDocuments(whereClause),
     ]);
 
@@ -190,7 +232,7 @@ class OrderService {
     }
 
     const order = await Order.findOne(whereClause)
-      .populate({ path: 'items', select: 'productId productName productImage price quantity subtotal total' })
+      .populate({ path: 'items', select: 'productId variantId variantColor variantStorage productName productImage price quantity subtotal total' })
       .populate({ path: 'user', select: 'name email' });
 
     if (!order) {
@@ -214,6 +256,12 @@ class OrderService {
       const product = await Product.findById(item.productId);
       if (product) {
         product.quantity += item.quantity;
+        if (item.variantId && Array.isArray(product.variants)) {
+          const variant = product.variants.find((entry) => String(entry._id) === String(item.variantId));
+          if (variant) {
+            variant.quantity += item.quantity;
+          }
+        }
         await product.save();
       }
     }

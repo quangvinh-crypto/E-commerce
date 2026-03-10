@@ -2,7 +2,7 @@ import api from './api';
 
 const buildProductFormData = (productData = {}) => {
   const formData = new FormData();
-  const { primaryImage, detailImages, specifications, ...rest } = productData;
+  const { primaryImage, detailImages, specifications, variants, ...rest } = productData;
 
   Object.entries(rest).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
@@ -11,6 +11,10 @@ const buildProductFormData = (productData = {}) => {
 
   if (specifications && Object.keys(specifications).length > 0) {
     formData.append('specifications', JSON.stringify(specifications));
+  }
+
+  if (Array.isArray(variants) && variants.length > 0) {
+    formData.append('variants', JSON.stringify(variants));
   }
 
   if (primaryImage instanceof File) {

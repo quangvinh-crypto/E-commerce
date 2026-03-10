@@ -25,6 +25,8 @@ const CheckoutPage = () => {
   const discount = appliedCoupon?.discountAmount || 0;
   const total = Math.max(0, subtotal + shippingFee + tax - discount);
   const getItemId = (item) => item.id || item._id || item.productId || item.product_id;
+  const getVariantId = (item) => item.variantId || item.variant?.id || null;
+  const getItemKey = (item) => `${getItemId(item) || ''}::${getVariantId(item) || ''}`;
   const getItemUnitPrice = (item) => {
     const discountPrice = Number(item.discount_price);
     const price = Number(item.price);
@@ -90,6 +92,7 @@ const CheckoutPage = () => {
       const orderItems = cart
         .map((item) => ({
           productId: getItemId(item),
+          variantId: getVariantId(item),
           quantity: item.quantity,
         }))
         .filter((item) => item.productId);
@@ -175,7 +178,7 @@ const CheckoutPage = () => {
             <div className="lg:col-span-1">
               <div className="bg-zinc-900 border border-gray-800 rounded-xl p-6 sticky top-24">
                 <h2 className="text-xl font-bold text-gray-100 mb-6">Đơn Hàng</h2>
-                <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">{cart.map((item) => <div key={getItemId(item)} className="flex gap-3"><img src={getCartItemImage(item)} alt={item.name} className="w-16 h-16 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://via.placeholder.com/60?text=No+Image'; }} /><div className="flex-1"><p className="font-medium text-gray-100 line-clamp-1">{item.name}</p><p className="text-sm text-gray-400">x{item.quantity}</p><p className="text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</p></div></div>)}</div>
+                <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">{cart.map((item) => <div key={getItemKey(item)} className="flex gap-3"><img src={getCartItemImage(item)} alt={item.name} className="w-16 h-16 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://via.placeholder.com/60?text=No+Image'; }} /><div className="flex-1"><p className="font-medium text-gray-100 line-clamp-1">{item.name}</p>{item.variant && <p className="text-xs text-gray-500">{item.variant.color} / {item.variant.storage}</p>}<p className="text-sm text-gray-400">x{item.quantity}</p><p className="text-amber-500">{(getItemUnitPrice(item) * item.quantity).toLocaleString('vi-VN')}₫</p></div></div>)}</div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-300 mb-2">Mã giảm giá</label>
                   <div className="flex gap-2">

@@ -39,6 +39,11 @@ class CartService {
     return Math.min(parsed, 999);
   }
 
+  normalizeVariantId(variantId) {
+    const normalized = String(variantId || '').trim();
+    return normalized || null;
+  }
+
   async readCart(key) {
     const client = getRedisClient();
     const raw = await client.get(key);
@@ -58,17 +63,59 @@ class CartService {
     await client.set(key, JSON.stringify(cartItems), 'EX', ttl);
   }
 
-  mapProductToCartItem(product, quantity = 1, existing = {}) {
+  mapProductToCartItem(product, quantity = 1, existing = {}, variant = null) {
+    const selectedVariant = variant || null;
+    const variantPrice = Number(selectedVariant?.price);
+    const productPrice = Number(product.price);
+
     return {
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: Number.isFinite(variantPrice) ? variantPrice : productPrice,
       discount_price: existing.discount_price || null,
-      image_url: product.images?.[0]?.url || existing.image_url || '',
-      images: Array.isArray(product.images) ? product.images : [],
+      image_url:
+        selectedVariant?.images?.[0]?.url ||
+        product.images?.[0]?.url ||
+        existing.image_url ||
+        '',
+      images: Array.isArray(selectedVariant?.images) && selectedVariant.images.length > 0
+        ? selectedVariant.images
+        : (Array.isArray(product.images) ? product.images : []),
+      variantId: selectedVariant?._id?.toString
+        ? selectedVariant._id.toString()
+        : (selectedVariant?.id || existing.variantId || null),
+      variant: selectedVariant
+        ? {
+            color: selectedVariant.color,
+            colorHex: selectedVariant.colorHex || null,
+            storage: selectedVariant.storage,
+            sku: selectedVariant.sku || null,
+          }
+        : (existing.variant || null),
       quantity,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  getVariantKey(item = {}) {
+    return `${String(item.id || '')}::${String(item.variantId || '')}`;
+  }
+
+  findProductVariant(product, variantId = null) {
+    if (!variantId) {
+      return Array.isArray(product.variants) && product.variants.length > 0
+        ? product.variants.find((variant) => variant.isActive !== false) || product.variants[0]
+        : null;
+    }
+
+    if (!Array.isArray(product.variants) || product.variants.length === 0) {
+      return null;
+    }
+
+    return (
+      product.variants.find((variant) => String(variant._id) === String(variantId) && variant.isActive !== false) ||
+      null
+    );
   }
 
   async hydrateAndCleanCart(cartItems = []) {
@@ -81,7 +128,7 @@ class CartService {
     )];
     if (uniqueIds.length === 0) return [];
 
-    const products = await Product.find({ _id: { $in: uniqueIds } }).select('name price images isActive');
+    const products = await Product.find({ _id: { $in: uniqueIds } }).select('name price images variants isActive');
     const productMap = new Map(products.filter((p) => p.isActive).map((p) => [String(p.id), p]));
 
     const cleaned = [];
@@ -91,14 +138,21 @@ class CartService {
       const product = productMap.get(productId);
       if (!product) continue;
 
+      const normalizedVariantId = this.normalizeVariantId(item.variantId);
+      const variant = this.findProductVariant(product, normalizedVariantId);
+      if (normalizedVariantId && !variant) continue;
+
       let quantity;
       try {
         quantity = this.normalizeQuantity(item.quantity || 1);
       } catch (_) {
         quantity = 1;
       }
+      const maxQuantity = Number(variant?.quantity);
+      if (Number.isFinite(maxQuantity) && maxQuantity <= 0) continue;
+      const normalizedQty = Number.isFinite(maxQuantity) ? Math.min(quantity, maxQuantity) : quantity;
 
-      cleaned.push(this.mapProductToCartItem(product, quantity, item));
+      cleaned.push(this.mapProductToCartItem(product, normalizedQty, item, variant));
     }
 
     return cleaned;
@@ -118,74 +172,122 @@ class CartService {
     return cleaned;
   }
 
-  async addItem(userId, productId, quantity = 1) {
+  async addItem(userId, productId, quantity = 1, variantId = null) {
     this.ensureRedisAvailable();
 
     const key = this.buildUserCartKey(userId);
     const cartItems = await this.getCart(userId);
     const normalizedProductId = this.normalizeProductId(productId);
     const addQuantity = this.normalizeQuantity(quantity);
+    const normalizedVariantId = this.normalizeVariantId(variantId);
 
-    const product = await Product.findById(normalizedProductId).select('name price images isActive');
+    const product = await Product.findById(normalizedProductId).select('name price images variants isActive');
     if (!product || !product.isActive) {
       const error = new Error('Product not found');
       error.statusCode = 404;
       throw error;
     }
 
-    const index = cartItems.findIndex((item) => String(item.id) === normalizedProductId);
+    const variant = this.findProductVariant(product, normalizedVariantId);
+    if (normalizedVariantId && !variant) {
+      const error = new Error('Product variant not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (variant && variant.quantity <= 0) {
+      const error = new Error('Selected variant is out of stock');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const nextKey = `${normalizedProductId}::${normalizedVariantId || ''}`;
+    const index = cartItems.findIndex((item) => this.getVariantKey(item) === nextKey);
     if (index >= 0) {
       const nextQuantity = this.normalizeQuantity((cartItems[index].quantity || 0) + addQuantity);
-      cartItems[index] = this.mapProductToCartItem(product, nextQuantity, cartItems[index]);
+      const maxQuantity = Number(variant?.quantity);
+      const boundedQuantity = Number.isFinite(maxQuantity) ? Math.min(nextQuantity, maxQuantity) : nextQuantity;
+      cartItems[index] = this.mapProductToCartItem(product, boundedQuantity, cartItems[index], variant);
     } else {
-      cartItems.push(this.mapProductToCartItem(product, addQuantity));
+      const maxQuantity = Number(variant?.quantity);
+      const boundedQuantity = Number.isFinite(maxQuantity) ? Math.min(addQuantity, maxQuantity) : addQuantity;
+      cartItems.push(this.mapProductToCartItem(product, boundedQuantity, {}, variant));
     }
 
     await this.writeCart(key, cartItems);
     return cartItems;
   }
 
-  async updateItemQuantity(userId, productId, quantity) {
+  async updateItemQuantity(userId, productId, quantity, variantId = null) {
     this.ensureRedisAvailable();
 
     const key = this.buildUserCartKey(userId);
     const cartItems = await this.getCart(userId);
     const normalizedProductId = this.normalizeProductId(productId);
+    const normalizedVariantId = this.normalizeVariantId(variantId);
 
     if (quantity <= 0) {
-      const filtered = cartItems.filter((item) => String(item.id) !== normalizedProductId);
+      const filtered = cartItems.filter(
+        (item) => this.getVariantKey(item) !== `${normalizedProductId}::${normalizedVariantId || ''}`
+      );
       await this.writeCart(key, filtered);
       return filtered;
     }
 
     const nextQuantity = this.normalizeQuantity(quantity);
-    const index = cartItems.findIndex((item) => String(item.id) === normalizedProductId);
+    const index = cartItems.findIndex(
+      (item) => this.getVariantKey(item) === `${normalizedProductId}::${normalizedVariantId || ''}`
+    );
     if (index < 0) {
       const error = new Error('Cart item not found');
       error.statusCode = 404;
       throw error;
     }
 
-    const product = await Product.findById(normalizedProductId).select('name price images isActive');
+    const product = await Product.findById(normalizedProductId).select('name price images variants isActive');
     if (!product || !product.isActive) {
-      const filtered = cartItems.filter((item) => String(item.id) !== normalizedProductId);
+      const filtered = cartItems.filter(
+        (item) => this.getVariantKey(item) !== `${normalizedProductId}::${normalizedVariantId || ''}`
+      );
       await this.writeCart(key, filtered);
       return filtered;
     }
 
-    cartItems[index] = this.mapProductToCartItem(product, nextQuantity, cartItems[index]);
+    const variant = this.findProductVariant(product, normalizedVariantId);
+    if (normalizedVariantId && !variant) {
+      const filtered = cartItems.filter(
+        (item) => this.getVariantKey(item) !== `${normalizedProductId}::${normalizedVariantId || ''}`
+      );
+      await this.writeCart(key, filtered);
+      return filtered;
+    }
+
+    if (variant && variant.quantity <= 0) {
+      const filtered = cartItems.filter(
+        (item) => this.getVariantKey(item) !== `${normalizedProductId}::${normalizedVariantId || ''}`
+      );
+      await this.writeCart(key, filtered);
+      return filtered;
+    }
+
+    const maxQuantity = Number(variant?.quantity);
+    const boundedQuantity = Number.isFinite(maxQuantity) ? Math.min(nextQuantity, maxQuantity) : nextQuantity;
+    cartItems[index] = this.mapProductToCartItem(product, boundedQuantity, cartItems[index], variant);
 
     await this.writeCart(key, cartItems);
     return cartItems;
   }
 
-  async removeItem(userId, productId) {
+  async removeItem(userId, productId, variantId = null) {
     this.ensureRedisAvailable();
 
     const key = this.buildUserCartKey(userId);
     const cartItems = await this.getCart(userId);
     const normalizedProductId = this.normalizeProductId(productId);
-    const filtered = cartItems.filter((item) => String(item.id) !== normalizedProductId);
+    const normalizedVariantId = this.normalizeVariantId(variantId);
+    const filtered = cartItems.filter(
+      (item) => this.getVariantKey(item) !== `${normalizedProductId}::${normalizedVariantId || ''}`
+    );
 
     await this.writeCart(key, filtered);
     return filtered;

@@ -19,6 +19,8 @@ export const CartProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const getProductId = (item) => item?.id || item?._id || item?.productId || item?.product_id;
+  const getVariantId = (item) => item?.variantId || item?.variant_id || item?.variant?.id || null;
+  const getCartItemKey = (item) => `${getProductId(item) || ''}::${getVariantId(item) || ''}`;
 
   const getItemUnitPrice = (item) => {
     const discountPrice = Number(item.discount_price);
@@ -48,8 +50,9 @@ export const CartProvider = ({ children }) => {
     loadCart();
   }, [loadCart]);
 
-  const addToCart = useCallback(async (product, quantity = 1) => {
+  const addToCart = useCallback(async (product, quantity = 1, options = {}) => {
     const productId = getProductId(product);
+    const variantId = options.variantId || getVariantId(product);
     if (!productId) {
       toast.error('Không thể thêm sản phẩm vào giỏ hàng');
       return { success: false };
@@ -61,7 +64,7 @@ export const CartProvider = ({ children }) => {
     }
 
     try {
-      const response = await cartService.addToCart(productId, quantity);
+      const response = await cartService.addToCart(productId, quantity, variantId);
       setCart(Array.isArray(response?.data) ? response.data : []);
       toast.success(`Đã thêm ${product?.name || 'sản phẩm'} vào giỏ hàng`);
       return { success: true };
@@ -71,15 +74,17 @@ export const CartProvider = ({ children }) => {
     }
   }, [isAuthenticated]);
 
-  const removeFromCart = useCallback(async (productId) => {
+  const removeFromCart = useCallback(async (productId, variantId = null) => {
     if (!isAuthenticated) {
       return { success: false };
     }
 
-    const item = cart.find((cartItem) => getProductId(cartItem) === productId);
+    const item = cart.find(
+      (cartItem) => getProductId(cartItem) === productId && (variantId || null) === (getVariantId(cartItem) || null)
+    );
 
     try {
-      const response = await cartService.removeCartItem(productId);
+      const response = await cartService.removeCartItem(productId, variantId);
       setCart(Array.isArray(response?.data) ? response.data : []);
       if (item) {
         toast.success(`Đã xóa ${item.name} khỏi giỏ hàng`);
@@ -91,13 +96,13 @@ export const CartProvider = ({ children }) => {
     }
   }, [cart, isAuthenticated]);
 
-  const updateQuantity = useCallback(async (productId, quantity) => {
+  const updateQuantity = useCallback(async (productId, quantity, variantId = null) => {
     if (!isAuthenticated) {
       return { success: false };
     }
 
     try {
-      const response = await cartService.updateCartItem(productId, quantity);
+      const response = await cartService.updateCartItem(productId, quantity, variantId);
       setCart(Array.isArray(response?.data) ? response.data : []);
       return { success: true };
     } catch (error) {
@@ -135,12 +140,16 @@ export const CartProvider = ({ children }) => {
     return cart.reduce((count, item) => count + item.quantity, 0);
   };
 
-  const isInCart = (productId) => {
-    return cart.some((item) => getProductId(item) === productId);
+  const isInCart = (productId, variantId = null) => {
+    return cart.some(
+      (item) => getProductId(item) === productId && (variantId || null) === (getVariantId(item) || null)
+    );
   };
 
-  const getItemQuantity = (productId) => {
-    const item = cart.find((cartItem) => getProductId(cartItem) === productId);
+  const getItemQuantity = (productId, variantId = null) => {
+    const item = cart.find(
+      (cartItem) => getProductId(cartItem) === productId && (variantId || null) === (getVariantId(cartItem) || null)
+    );
     return item ? item.quantity : 0;
   };
 
@@ -155,6 +164,8 @@ export const CartProvider = ({ children }) => {
     getCartCount,
     isInCart,
     getItemQuantity,
+    getVariantId,
+    getCartItemKey,
     loadCart,
   };
 

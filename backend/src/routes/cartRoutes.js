@@ -14,6 +14,10 @@ const upsertCartItemValidation = [
     .optional()
     .isInt({ min: 1 })
     .withMessage('Quantity must be a positive integer'),
+  body('variantId')
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage('Variant ID must be a valid MongoDB ObjectId'),
   validate,
 ];
 
@@ -24,6 +28,10 @@ const updateCartItemValidation = [
   body('quantity')
     .isInt({ min: 0 })
     .withMessage('Quantity must be a non-negative integer'),
+  body('variantId')
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage('Variant ID must be a valid MongoDB ObjectId'),
   validate,
 ];
 
