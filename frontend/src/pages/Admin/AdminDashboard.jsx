@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import { 
-  Users, Package, FolderOpen, ShoppingCart, Clock, TrendingUp,
-  ArrowUpRight, ArrowDownRight, DollarSign, BarChart3, PieChart,
+  Users, Package, FolderOpen, ShoppingCart, Clock,
+  ArrowUpRight, ArrowDownRight, DollarSign, PieChart,
   ArrowRight
 } from 'lucide-react';
 import productService from '../../services/productService';
@@ -196,14 +196,6 @@ const AdminDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-800">Bảng điều khiển</h1>
           <p className="text-gray-500">Tổng quan kinh doanh</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            to="/admin/reports"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-sm"
-          >
-            <BarChart3 size={18} /> Xem báo cáo chi tiết
-          </Link>
-        </div>
       </div>
 
       {/* Stats Cards */}
@@ -393,7 +385,7 @@ const AdminDashboard = () => {
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">Sản phẩm bán chạy</h3>
-            <Link to="/admin/reports" className="text-blue-500 text-sm hover:underline inline-flex items-center gap-1">Xem tất cả <ArrowRight size={14} /></Link>
+            <Link to="/admin/products" className="text-blue-500 text-sm hover:underline inline-flex items-center gap-1">Xem tất cả <ArrowRight size={14} /></Link>
           </div>
           <div className="space-y-3">
             {topProducts.length > 0 ? topProducts.map((product, idx) => (
@@ -451,7 +443,7 @@ const AdminDashboard = () => {
       {/* Thao tác nhanh */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Thao tác nhanh</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Link to="/admin/users" className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors">
             <Users className="text-blue-500" size={24} />
             <span className="text-sm font-medium text-gray-700">Quản lý người dùng</span>
@@ -467,14 +459,6 @@ const AdminDashboard = () => {
           <Link to="/admin/staff/create" className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-colors">
             <Users className="text-purple-500" size={24} />
             <span className="text-sm font-medium text-gray-700">Tạo tài khoản</span>
-          </Link>
-          <Link to="/admin/reports" className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl hover:border-pink-500 hover:bg-pink-50 transition-colors">
-            <BarChart3 className="text-pink-500" size={24} />
-            <span className="text-sm font-medium text-gray-700">Báo cáo</span>
-          </Link>
-          <Link to="/admin/settings" className="flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl hover:border-gray-500 hover:bg-gray-50 transition-colors">
-            <TrendingUp className="text-gray-500" size={24} />
-            <span className="text-sm font-medium text-gray-700">Cài đặt</span>
           </Link>
         </div>
       </div>

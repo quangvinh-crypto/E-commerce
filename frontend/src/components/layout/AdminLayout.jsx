@@ -7,8 +7,6 @@ import {
   FolderOpen,
   ShoppingCart,
   UserPlus,
-  BarChart3,
-  Settings,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -22,8 +20,6 @@ const menuItems = [
   { path: '/admin/categories', label: 'Danh mục', icon: FolderOpen },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/staff/create', label: 'Tạo tài khoản', icon: UserPlus },
-  { path: '/admin/reports', label: 'Báo cáo', icon: BarChart3 },
-  { path: '/admin/settings', label: 'Cài đặt', icon: Settings },
 ];
 
 const AdminLayout = () => {

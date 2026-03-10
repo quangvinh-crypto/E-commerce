@@ -8,8 +8,6 @@ import {
   ShoppingCart,
   UserPlus,
   PlusSquare,
-  BarChart3,
-  Settings,
   Boxes,
   PanelLeftClose,
   PanelLeftOpen,
@@ -29,8 +27,6 @@ const adminMenuItems = [
   { path: '/admin/reviews', label: 'Bình luận', icon: MessageSquare },
   { path: '/admin/coupons', label: 'Coupon', icon: BadgePercent },
   { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes },
-  { path: '/admin/reports', label: 'Báo cáo', icon: BarChart3 },
-  { path: '/admin/settings', label: 'Cài đặt', icon: Settings },
 ];
 
 const staffMenuItems = [
