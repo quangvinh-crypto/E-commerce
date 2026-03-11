@@ -14,7 +14,24 @@ const buildProductFormData = (productData = {}) => {
   }
 
   if (Array.isArray(variants) && variants.length > 0) {
-    formData.append('variants', JSON.stringify(variants));
+    const variantPayload = variants.map((variant) => {
+      const { localImages, ...restVariant } = variant;
+      return restVariant;
+    });
+    formData.append('variants', JSON.stringify(variantPayload));
+
+    const appendedVariantKeys = new Set();
+    variants.forEach((variant) => {
+      if (!variant?.clientKey) return;
+      if (!Array.isArray(variant.localImages)) return;
+      if (appendedVariantKeys.has(variant.clientKey)) return;
+      appendedVariantKeys.add(variant.clientKey);
+      variant.localImages.forEach((file) => {
+        if (file instanceof File) {
+          formData.append(`variantImages:${variant.clientKey}`, file);
+        }
+      });
+    });
   }
 
   if (primaryImage instanceof File) {

@@ -44,6 +44,7 @@ class ProductService {
     const normalized = parsedVariants
       .map((variant) => ({
         _id: variant?.id || variant?._id,
+        clientKey: variant?.clientKey ? String(variant.clientKey).trim() : null,
         color: String(variant?.color || '').trim(),
         colorHex: variant?.colorHex ? String(variant.colorHex).trim() : null,
         storage: String(variant?.storage || '').trim(),
@@ -177,12 +178,16 @@ class ProductService {
       if (!category) throw new Error('Category not found');
     }
 
-    const images = await this.uploadImages(files);
+    const productImageFiles = (files || []).filter((file) => file.fieldname === 'images');
+    const images = await this.uploadImages(productImageFiles);
 
     if (!parsedVariants || parsedVariants.length === 0) {
       parsedVariants = this.buildDefaultVariant({ price, quantity, images });
+    } else {
+      parsedVariants = await this.attachVariantImages(parsedVariants, files);
     }
     const aggregate = this.calculateAggregateFromVariants(parsedVariants, { price, quantity });
+    const representativeImages = this.extractRepresentativeImages(parsedVariants, images);
 
     const product = await Product.create({
       name,
@@ -191,7 +196,7 @@ class ProductService {
       quantity: aggregate.quantity,
       categoryId: categoryId || null,
       isActive: isActive !== undefined ? isActive : true,
-      images,
+      images: representativeImages,
       variants: parsedVariants,
       specifications: parsedSpecifications,
     });
@@ -215,7 +220,8 @@ class ProductService {
     }
 
     if (files?.length > 0) {
-      const newImages = await this.uploadImages(files);
+      const productImageFiles = files.filter((file) => file.fieldname === 'images');
+      const newImages = await this.uploadImages(productImageFiles);
       product.images = [...(product.images || []), ...newImages];
     }
 
@@ -227,7 +233,7 @@ class ProductService {
     if (isActive !== undefined) product.isActive = isActive;
     if (specifications !== undefined) product.specifications = parsedSpecifications;
     if (variants !== undefined) {
-      product.variants = parsedVariants;
+      product.variants = await this.attachVariantImages(parsedVariants, files);
     }
 
     if ((!product.variants || product.variants.length === 0) && (price !== undefined || quantity !== undefined)) {
@@ -244,6 +250,7 @@ class ProductService {
     });
     product.price = aggregate.price;
     product.quantity = aggregate.quantity;
+    product.images = this.extractRepresentativeImages(product.variants, product.images);
 
     await product.save();
 
@@ -334,6 +341,55 @@ class ProductService {
     }
 
     return images;
+  }
+
+  extractRepresentativeImages(variants = [], fallbackImages = []) {
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return Array.isArray(fallbackImages) ? fallbackImages : [];
+    }
+
+    const sourceVariant =
+      variants.find((variant) => Array.isArray(variant.images) && variant.images.length > 0) || null;
+
+    if (!sourceVariant) {
+      return Array.isArray(fallbackImages) ? fallbackImages : [];
+    }
+
+    return sourceVariant.images.slice(0, 4);
+  }
+
+  async attachVariantImages(variants = [], files = []) {
+    if (!Array.isArray(variants)) return [];
+
+    const groupedFiles = new Map();
+    (files || []).forEach((file) => {
+      if (!String(file.fieldname || '').startsWith('variantImages:')) return;
+      const key = String(file.fieldname).replace('variantImages:', '').trim();
+      if (!key) return;
+      const bucket = groupedFiles.get(key) || [];
+      bucket.push(file);
+      groupedFiles.set(key, bucket);
+    });
+
+    const uploadedByKey = new Map();
+    const normalized = [];
+    for (const variant of variants) {
+      const key = variant.clientKey || variant._id?.toString?.() || '';
+      const next = { ...variant };
+      if (key && groupedFiles.has(key)) {
+        if (!uploadedByKey.has(key)) {
+          const uploadedImages = await this.uploadImages(groupedFiles.get(key));
+          uploadedByKey.set(key, uploadedImages);
+        }
+        next.images = uploadedByKey.get(key);
+      } else if (!Array.isArray(next.images)) {
+        next.images = [];
+      }
+      delete next.clientKey;
+      normalized.push(next);
+    }
+
+    return normalized;
   }
 }
 

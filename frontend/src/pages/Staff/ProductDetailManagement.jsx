@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from 'react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Edit2, BadgeCheck } from 'lucide-react';
@@ -28,11 +28,15 @@ const specLabels = {
   warranty: 'Bảo hành',
 };
 
+const INTERNAL_SPEC_KEYS = new Set(['variantColors', 'variantStorages']);
+
 const ProductDetailManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedImage, setSelectedImage] = useState('');
+  const [selectedColor, setSelectedColor] = useState('');
+  const [selectedStorage, setSelectedStorage] = useState('');
 
   const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
 
@@ -53,6 +57,14 @@ const ProductDetailManagement = () => {
             ? [getImageUrl(product.image_url)]
             : ['https://via.placeholder.com/800?text=No+Image'];
         setSelectedImage(images[0]);
+        const variants = Array.isArray(product?.variants)
+          ? product.variants.filter((variant) => variant?.isActive !== false)
+          : [];
+        if (variants.length > 0) {
+          const first = variants[0];
+          setSelectedColor(first.color || '');
+          setSelectedStorage(first.storage || '');
+        }
       },
     }
   );
@@ -82,6 +94,85 @@ const ProductDetailManagement = () => {
     return product.specifications;
   }, [product]);
 
+  const filteredSpecifications = useMemo(
+    () => Object.fromEntries(Object.entries(specifications).filter(([key]) => !INTERNAL_SPEC_KEYS.has(key))),
+    [specifications]
+  );
+
+  const variants = useMemo(() => {
+    if (!Array.isArray(product?.variants)) return [];
+    return product.variants
+      .filter((variant) => variant?.isActive !== false)
+      .map((variant) => ({
+        id: variant.id || variant._id,
+        color: variant.color,
+        colorHex: variant.colorHex || '#737373',
+        storage: variant.storage,
+        price: Number(variant.price) || 0,
+        quantity: Number(variant.quantity) || 0,
+        images: Array.isArray(variant.images) ? variant.images.map((img) => getImageUrl(img)) : [],
+      }));
+  }, [product]);
+
+  const colorOptions = useMemo(
+    () => [...new Set(variants.map((variant) => variant.color).filter(Boolean))],
+    [variants]
+  );
+
+  const storageOptions = useMemo(() => {
+    if (!selectedColor) return [];
+    return variants
+      .filter((variant) => variant.color === selectedColor)
+      .map((variant) => variant.storage)
+      .filter(Boolean);
+  }, [variants, selectedColor]);
+
+  const selectedVariant = useMemo(
+    () =>
+      variants.find(
+        (variant) => variant.color === selectedColor && variant.storage === selectedStorage
+      ) || variants.find((variant) => variant.color === selectedColor) || null,
+    [variants, selectedColor, selectedStorage]
+  );
+
+  const colorThumbnails = useMemo(() => {
+    const seen = new Set();
+    return variants
+      .filter((variant) => {
+        if (!variant?.color || seen.has(variant.color)) return false;
+        seen.add(variant.color);
+        return true;
+      })
+      .map((variant) => ({
+        color: variant.color,
+        image: (Array.isArray(variant.images) && variant.images[0]) || images[0],
+      }));
+  }, [variants, images]);
+
+  const handleSelectColor = (color) => {
+    if (!color) return;
+    setSelectedColor(color);
+    const matched =
+      variants.find((variant) => variant.color === color && variant.storage === selectedStorage) ||
+      variants.find((variant) => variant.color === color) ||
+      null;
+    if (matched?.storage) setSelectedStorage(matched.storage);
+    const representative = (Array.isArray(matched?.images) && matched.images[0]) || '';
+    setSelectedImage(representative || '');
+  };
+
+  useEffect(() => {
+    if (!selectedColor && colorOptions.length > 0) {
+      setSelectedColor(colorOptions[0]);
+    }
+  }, [selectedColor, colorOptions]);
+
+  useEffect(() => {
+    if (selectedColor && storageOptions.length > 0 && !storageOptions.includes(selectedStorage)) {
+      setSelectedStorage(storageOptions[0]);
+    }
+  }, [selectedColor, selectedStorage, storageOptions]);
+
   const formatPrice = (price) => new Intl.NumberFormat('vi-VN').format(price || 0) + '₫';
 
   if (isLoading) {
@@ -94,8 +185,10 @@ const ProductDetailManagement = () => {
 
   if (!product) return null;
 
-  const mainImage = selectedImage || images[0];
-  const imagePreviewList = images.slice(0, 4);
+  const activeImages = selectedVariant?.images?.length > 0 ? selectedVariant.images : images;
+  const mainImage = activeImages.includes(selectedImage) ? selectedImage : activeImages[0];
+  const displayPrice = selectedVariant?.price || product.price;
+  const displayStock = selectedVariant?.quantity ?? (product.quantity || 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -132,39 +225,87 @@ const ProductDetailManagement = () => {
         <div className="xl:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-3">Thông tin sản phẩm</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
-            <p>Giá bán: <span className="font-semibold text-blue-600">{formatPrice(product.price)}</span></p>
-            <p>Tồn kho: <span className="font-semibold">{product.quantity || 0}</span></p>
+            <p>Giá bán: <span className="font-semibold text-blue-600">{formatPrice(displayPrice)}</span></p>
+            <p>Tồn kho: <span className="font-semibold">{displayStock}</span></p>
             <p>Trạng thái: <span className="font-semibold">{product.isActive ? 'Đang bán' : 'Ngừng bán'}</span></p>
             <p>Danh mục: <span className="font-semibold">{product.category?.name || 'Chưa phân loại'}</span></p>
             <p className="md:col-span-2">Mã sản phẩm: <span className="font-semibold">{product.id}</span></p>
+            {selectedVariant && (
+              <p className="md:col-span-2">Biến thể: <span className="font-semibold">{selectedVariant.color} / {selectedVariant.storage}</span></p>
+            )}
           </div>
         </div>
 
         <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          {colorOptions.length > 0 && (
+            <div className="mb-4 p-3 border rounded-xl bg-gray-50">
+              <p className="text-sm text-gray-600 mb-2">Chọn màu</p>
+              <div className="flex gap-2 flex-wrap mb-3">
+                {colorOptions.map((color) => {
+                  const colorHex = variants.find((variant) => variant.color === color)?.colorHex || '#737373';
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      title={color}
+                      onClick={() => handleSelectColor(color)}
+                      className={`w-9 h-9 rounded-full border-2 ${selectedColor === color ? 'border-blue-500' : 'border-gray-300'}`}
+                      style={{ backgroundColor: colorHex }}
+                    />
+                  );
+                })}
+              </div>
+              {storageOptions.length > 0 && (
+                <>
+                  <p className="text-sm text-gray-600 mb-2">Chọn dung lượng</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {storageOptions.map((storage) => (
+                      <button
+                        key={storage}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStorage(storage);
+                          setSelectedImage('');
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border text-sm ${selectedStorage === storage ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-700'}`}
+                      >
+                        {storage}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="border rounded-xl overflow-hidden bg-gray-50 mb-4 flex items-center justify-center">
             <img src={mainImage} alt={product.name} className="w-full max-h-[520px] object-contain" />
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
-            {imagePreviewList.map((img, idx) => (
-              <button
-                key={`${img}-${idx}`}
-                onClick={() => setSelectedImage(img)}
-                className={`rounded-lg overflow-hidden border-2 ${mainImage === img ? 'border-blue-500' : 'border-gray-200 hover:border-gray-400'}`}
-              >
-                <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-20 object-cover" />
-              </button>
-            ))}
-          </div>
+          {colorThumbnails.length > 0 && (
+            <div className="grid grid-cols-4 gap-3 mt-3">
+              {colorThumbnails.map((item) => (
+                <button
+                  key={item.color}
+                  type="button"
+                  onClick={() => handleSelectColor(item.color)}
+                  className={`rounded-lg overflow-hidden border-2 ${selectedColor === item.color ? 'border-blue-500' : 'border-gray-200 hover:border-gray-400'}`}
+                  title={item.color}
+                >
+                  <img src={item.image} alt={item.color} className="w-full h-16 object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
           <h2 className="text-xl font-bold text-gray-800">Thông số kỹ thuật</h2>
-          {Object.keys(specifications).length > 0 ? (
+          {Object.keys(filteredSpecifications).length > 0 ? (
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
                 <tbody>
-                  {Object.entries(specifications).map(([key, value], idx) => (
+                  {Object.entries(filteredSpecifications).map(([key, value], idx) => (
                     <tr key={key} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="px-3 py-2 text-gray-600 font-medium w-2/5">{specLabels[key] || key}</td>
                       <td className="px-3 py-2 text-gray-800">{value}</td>
