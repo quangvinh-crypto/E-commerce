@@ -20,7 +20,7 @@ const upload = multer({
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB max file size
-    files: 10, // Max 10 files
+    files: 30, // Max 30 files
   },
 });
 
@@ -28,7 +28,7 @@ const upload = multer({
 const uploadSingle = upload.single('image');
 
 // Multiple files upload
-const uploadMultiple = upload.array('images', 10);
+const uploadMultiple = upload.any();
 
 // Error handler for multer
 const handleMulterError = (err, req, res, next) => {
@@ -42,7 +42,7 @@ const handleMulterError = (err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         success: false,
-        message: 'Too many files. Maximum is 10 files',
+        message: 'Too many files. Maximum is 30 files',
       });
     }
     return res.status(400).json({

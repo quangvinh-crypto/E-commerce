@@ -194,6 +194,9 @@ const ProductDetailPage = () => {
         storage: variant.storage,
         price: Number(variant.price) || 0,
         quantity: Number(variant.quantity) || 0,
+        images: Array.isArray(variant.images)
+          ? variant.images.map((img) => getImageUrl(img))
+          : [],
         image: variant.images?.[0]?.url ? getImageUrl(variant.images[0]) : null,
       }));
   }, [product]);
@@ -233,8 +236,13 @@ const ProductDetailPage = () => {
   }, [storageOptions]);
 
   useEffect(() => {
-    if (!selectedVariant?.image) return;
-    setSelectedImage(selectedVariant.image);
+    if (!selectedVariant) return;
+    const firstVariantImage =
+      (Array.isArray(selectedVariant.images) && selectedVariant.images[0]) ||
+      selectedVariant.image ||
+      '';
+    if (!firstVariantImage) return;
+    setSelectedImage(firstVariantImage);
   }, [selectedVariant]);
 
   useEffect(() => {
@@ -494,11 +502,50 @@ const ProductDetailPage = () => {
       : product.image_url
       ? [getImageUrl(product.image_url)]
       : ['https://via.placeholder.com/600'];
-  const images = selectedVariant?.image
+  const selectedVariantImages = Array.isArray(selectedVariant?.images) ? selectedVariant.images : [];
+  const images = selectedVariantImages.length > 0
+    ? [...selectedVariantImages, ...baseImages.filter((img) => !selectedVariantImages.includes(img))]
+    : selectedVariant?.image
     ? [selectedVariant.image, ...baseImages.filter((img) => img !== selectedVariant.image)]
     : baseImages;
-  const thumbnailImages = images.slice(0, 4);
-  const mainImage = selectedImage || images[0];
+  const mainImage = images.includes(selectedImage) ? selectedImage : images[0];
+
+  const colorThumbnails = (() => {
+    const seen = new Set();
+    return variants
+      .filter((variant) => {
+        if (!variant?.color || seen.has(variant.color)) return false;
+        seen.add(variant.color);
+        return true;
+      })
+      .map((variant) => ({
+        color: variant.color,
+        image:
+          (Array.isArray(variant.images) && variant.images[0]) ||
+          variant.image ||
+          baseImages[0],
+      }));
+  })();
+
+  const handleSelectColor = (color) => {
+    if (!color) return;
+    setSelectedColor(color);
+
+    const matched =
+      variants.find((variant) => variant.color === color && variant.storage === selectedStorage) ||
+      variants.find((variant) => variant.color === color) ||
+      null;
+
+    if (matched?.storage) {
+      setSelectedStorage(matched.storage);
+    }
+
+    const representative =
+      (Array.isArray(matched?.images) && matched.images[0]) ||
+      matched?.image ||
+      '';
+    setSelectedImage(representative || '');
+  };
 
   const baseDiscountAmount =
     product.discount_price && Number(product.price) > Number(product.discount_price)
@@ -544,17 +591,19 @@ const ProductDetailPage = () => {
                 className="w-full aspect-square object-cover"
               />
             </div>
-            {thumbnailImages.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
-                {thumbnailImages.map((img, i) => (
+            {colorThumbnails.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mt-3">
+                {colorThumbnails.map((item) => (
                   <button
-                    key={i}
-                    onClick={() => setSelectedImage(img)}
+                    key={item.color}
+                    type="button"
+                    onClick={() => handleSelectColor(item.color)}
                     className={`border-2 rounded-lg overflow-hidden transition-colors ${
-                      mainImage === img ? 'border-amber-500' : 'border-gray-800 hover:border-gray-600'
+                      selectedColor === item.color ? 'border-amber-500' : 'border-gray-800 hover:border-gray-600'
                     }`}
+                    title={item.color}
                   >
-                    <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-20 object-cover" />
+                    <img src={item.image} alt={item.color} className="w-full h-16 object-cover" />
                   </button>
                 ))}
               </div>
@@ -604,7 +653,7 @@ const ProductDetailPage = () => {
                   <button
                     key={color}
                     type="button"
-                    onClick={() => setSelectedColor(color)}
+                    onClick={() => handleSelectColor(color)}
                     title={color}
                     className={`w-10 h-10 rounded-full border-2 transition-all ${
                       selectedColor === color
@@ -627,7 +676,10 @@ const ProductDetailPage = () => {
                   <button
                     key={storage}
                     type="button"
-                    onClick={() => setSelectedStorage(storage)}
+                    onClick={() => {
+                      setSelectedStorage(storage);
+                      setSelectedImage('');
+                    }}
                     className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
                       selectedStorage === storage
                         ? 'border-amber-500 text-amber-500 bg-amber-500/10'

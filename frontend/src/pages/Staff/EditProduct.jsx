@@ -30,7 +30,7 @@ const defaultSpecFields = [
 
 const defaultVariantColors = [
   { name: 'Cam', hex: '#f59e0b' },
-  { name: 'Trang', hex: '#f8fafc' },
+  { name: 'Trắng', hex: '#f8fafc' },
 ];
 
 const defaultVariantStorages = ['256GB', '512GB', '1TB'];
@@ -54,13 +54,24 @@ const EditProduct = () => {
   const [customSpecs, setCustomSpecs] = useState([]);
   const [errors, setErrors] = useState({});
   const [showAllSpecs, setShowAllSpecs] = useState(false);
-  const [existingImages, setExistingImages] = useState([]);
-  const [primaryImage, setPrimaryImage] = useState(null);
-  const [detailImages, setDetailImages] = useState([]);
-  const [variantColors, setVariantColors] = useState(defaultVariantColors);
+  const [variantColors, setVariantColors] = useState(
+    defaultVariantColors.map((color) => ({ ...color, localImages: [], imagePreviews: [], serverImages: [] }))
+  );
   const [variantStorages, setVariantStorages] = useState(defaultVariantStorages);
   const [variants, setVariants] = useState([]);
   const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
+
+  const normalizeColorKey = (value) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-');
+
+  const buildVariantClientKey = (color) => normalizeColorKey(color);
 
   const { data: productData, isLoading: isLoadingProduct } = useQuery(
     ['product', id],
@@ -148,25 +159,38 @@ const EditProduct = () => {
       }
     });
 
+    const colorImageMap = new Map();
+    (Array.isArray(product.variants) ? product.variants : []).forEach((variant) => {
+      const colorKey = normalizeColorKey(variant?.color);
+      if (!colorKey || colorImageMap.has(colorKey)) return;
+      colorImageMap.set(colorKey, Array.isArray(variant.images) ? variant.images : []);
+    });
+
     setSpecifications(defaultSpecs);
     setCustomSpecs(customSpecsList);
     setShowAllSpecs(Object.keys(specs).length > 8);
-    setVariantColors(parsedVariantColors.length > 0 ? parsedVariantColors : defaultVariantColors);
+    setVariantColors(
+      (parsedVariantColors.length > 0 ? parsedVariantColors : defaultVariantColors).map((color) => ({
+        ...color,
+        localImages: [],
+        imagePreviews: [],
+        serverImages: colorImageMap.get(normalizeColorKey(color.name)) || [],
+      }))
+    );
     setVariantStorages(parsedVariantStorages.length > 0 ? parsedVariantStorages : defaultVariantStorages);
     const productVariants = Array.isArray(product.variants)
       ? product.variants.map((variant) => ({
           id: variant.id || variant._id,
+          clientKey: buildVariantClientKey(variant.color),
           color: variant.color || '',
           colorHex: variant.colorHex || '#737373',
           storage: variant.storage || '',
           price: variant.price ?? '',
           quantity: variant.quantity ?? '',
+          images: Array.isArray(variant.images) ? variant.images : [],
         }))
       : [];
     setVariants(productVariants);
-    setExistingImages(Array.isArray(product.images) ? product.images : []);
-    setPrimaryImage(null);
-    setDetailImages([]);
   }, [productData]);
 
   const { data: categoriesData } = useQuery('categories', () => categoryService.getCategories());
@@ -185,22 +209,6 @@ const EditProduct = () => {
     }
   );
 
-  const deleteImageMutation = useMutation(
-    ({ productId, publicId }) => productService.deleteProductImage(productId, publicId),
-    {
-      onSuccess: (response) => {
-        const images = Array.isArray(response?.data?.images) ? response.data.images : [];
-        setExistingImages(images);
-        queryClient.invalidateQueries('products');
-        queryClient.invalidateQueries(['product', id]);
-        toast.success('Xóa ảnh thành công');
-      },
-      onError: (error) => {
-        toast.error(error.response?.data?.message || 'Xóa ảnh thất bại');
-      },
-    }
-  );
-
   const validate = () => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = 'Tên sản phẩm không được để trống';
@@ -209,6 +217,18 @@ const EditProduct = () => {
     if (!variants.length) newErrors.variants = 'Vui lòng tạo ít nhất 1 biến thể màu/dung lượng';
     if (variants.some((variant) => !variant.color || !variant.storage || Number(variant.price) <= 0 || Number(variant.quantity) < 0)) {
       newErrors.variants = 'Biến thể phải có màu, dung lượng, giá > 0 và tồn kho >= 0';
+    }
+    const missingColorImages = variantColors.some((color) => {
+      const colorName = String(color.name || '').trim();
+      if (!colorName) return false;
+      const hasVariant = variants.some((variant) => variant.color === colorName);
+      if (!hasVariant) return false;
+      const hasLocal = Array.isArray(color.localImages) && color.localImages.length > 0;
+      const hasServer = Array.isArray(color.serverImages) && color.serverImages.length > 0;
+      return !hasLocal && !hasServer;
+    });
+    if (missingColorImages) {
+      newErrors.variants = 'Mỗi màu cần chọn ít nhất 1 ảnh';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -231,6 +251,15 @@ const EditProduct = () => {
         hex: String(item.hex || '').trim(),
       }))
       .filter((item) => item.name && item.hex);
+
+    const colorImagesMap = new Map(
+      variantColors
+        .map((color) => [
+          normalizeColorKey(color.name),
+          Array.isArray(color.localImages) ? color.localImages : [],
+        ])
+        .filter(([name]) => Boolean(name))
+    );
 
     const sanitizedStorages = variantStorages
       .map((item) => String(item || '').trim())
@@ -259,14 +288,15 @@ const EditProduct = () => {
       specifications: Object.keys(filteredSpecs).length > 0 ? filteredSpecs : null,
       variants: variants.map((variant) => ({
         id: variant.id,
+        clientKey: variant.clientKey,
         color: variant.color,
         colorHex: variant.colorHex,
         storage: variant.storage,
         price: Number(variant.price) || 0,
         quantity: Number(variant.quantity) || 0,
+        images: Array.isArray(variant.images) ? variant.images : [],
+        localImages: colorImagesMap.get(normalizeColorKey(variant.color)) || [],
       })),
-      primaryImage,
-      detailImages,
     };
 
     updateProductMutation.mutate(productData);
@@ -302,7 +332,7 @@ const EditProduct = () => {
   };
 
   const addVariantColor = () => {
-    setVariantColors((prev) => [...prev, { name: '', hex: '#000000' }]);
+    setVariantColors((prev) => [...prev, { name: '', hex: '#000000', localImages: [], imagePreviews: [], serverImages: [] }]);
   };
 
   const updateVariantColor = (index, field, value) => {
@@ -315,6 +345,16 @@ const EditProduct = () => {
 
   const removeVariantColor = (index) => {
     setVariantColors((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateVariantColorImages = (index, files) => {
+    const fileList = Array.from(files || []).slice(0, 4);
+    setVariantColors((prev) => {
+      const updated = [...prev];
+      updated[index].localImages = fileList;
+      updated[index].imagePreviews = fileList.map((file) => URL.createObjectURL(file));
+      return updated;
+    });
   };
 
   const addVariantStorage = () => {
@@ -344,11 +384,13 @@ const EditProduct = () => {
         const existing = variants.find((variant) => variant.color === color.name && variant.storage === storage);
         return {
           id: existing?.id,
+          clientKey: existing?.clientKey || buildVariantClientKey(color.name),
           color: color.name,
           colorHex: color.hex,
           storage,
           price: existing?.price || formData.price || '',
           quantity: existing?.quantity || '',
+          images: existing?.images || [],
         };
       })
     );
@@ -371,23 +413,13 @@ const EditProduct = () => {
     setVariants((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handlePrimaryImageChange = (e) => {
-    const file = e.target.files?.[0] || null;
-    setPrimaryImage(file);
-  };
-
-  const handleDetailImagesChange = (e) => {
-    const files = Array.from(e.target.files || []).slice(0, 3);
-    setDetailImages(files);
-  };
-
-  const handleDeleteExistingImage = (publicId) => {
-    if (!publicId) return;
-    deleteImageMutation.mutate({ productId: id, publicId });
-  };
-
   const categories = categoriesData?.data || [];
   const visibleSpecs = showAllSpecs ? defaultSpecFields : defaultSpecFields.slice(0, 8);
+
+  useEffect(() => {
+    const total = variants.reduce((sum, variant) => sum + (Number(variant.quantity) || 0), 0);
+    setFormData((prev) => ({ ...prev, quantity: total }));
+  }, [variants]);
 
   if (isLoadingProduct || !productData) {
     return <div>Đang tải...</div>;
@@ -463,13 +495,14 @@ const EditProduct = () => {
                   type="number"
                   name="quantity"
                   value={formData.quantity}
-                  onChange={handleChange}
+                  readOnly
                   className={`w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.quantity ? 'border-red-500' : ''
                   }`}
                   placeholder="100"
                   min="0"
                 />
+                <p className="text-xs text-gray-500 mt-1">Tự động tính theo tổng tồn kho các biến thể</p>
                 {errors.quantity && <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>}
               </div>
             </div>
@@ -493,89 +526,21 @@ const EditProduct = () => {
             </div>
             </div>
 
-            {/* Product Images */}
             <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Hình ảnh sản phẩm</h2>
-
-              {existingImages.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Ảnh hiện tại</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {existingImages.map((img, idx) => (
-                      <div key={img.publicId || `${img.url}-${idx}`} className="relative border rounded-lg overflow-hidden">
-                        <img src={img.url} alt={`Ảnh ${idx + 1}`} className="w-full h-24 object-cover" />
-                        {img.publicId && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteExistingImage(img.publicId)}
-                            disabled={deleteImageMutation.isLoading}
-                            className="absolute top-1 right-1 p-1.5 bg-white/90 text-red-500 rounded hover:bg-white disabled:opacity-50"
-                            title="Xóa ảnh"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-4">
-                <label className="block text-gray-700 font-semibold mb-2">Thêm ảnh đại diện mới</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePrimaryImageChange}
-                  className="w-full border rounded-lg px-4 py-2 bg-white"
-                />
-                {primaryImage && (
-                  <img
-                    src={URL.createObjectURL(primaryImage)}
-                    alt="Ảnh đại diện mới"
-                    className="mt-3 w-32 h-32 object-cover rounded-lg border"
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">Thêm ảnh chi tiết mới (tối đa 3 ảnh)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleDetailImagesChange}
-                  className="w-full border rounded-lg px-4 py-2 bg-white"
-                />
-                {detailImages.length > 0 && (
-                  <div className="mt-3 grid grid-cols-3 gap-3">
-                    {detailImages.map((file, idx) => (
-                      <img
-                        key={`${file.name}-${idx}`}
-                        src={URL.createObjectURL(file)}
-                        alt={`Ảnh mới ${idx + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border"
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="border border-gray-200 rounded-xl p-4 md:p-5 mb-6 bg-gray-50/40">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Tuy chon bien the (preview)</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Tùy chọn biến thể</h2>
 
               <div className="mb-5">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Bang mau theo dong may</p>
+                <p className="text-sm font-semibold text-gray-700 mb-2">Bảng màu theo dòng máy</p>
                 <div className="space-y-2">
                   {variantColors.map((color, idx) => (
-                    <div key={`color-${idx}`} className="flex gap-2 items-center">
+                    <div key={`color-${idx}`} className="rounded-lg border p-3 space-y-2">
+                      <div className="flex gap-2 items-center">
                       <input
                         type="text"
                         value={color.name}
                         onChange={(e) => updateVariantColor(idx, 'name', e.target.value)}
                         className="flex-1 border rounded-lg px-3 py-2 text-sm"
-                        placeholder="Ten mau (vd: Cam titan)"
+                        placeholder="Tên màu (vd: Cam titan)"
                       />
                       <input
                         type="color"
@@ -587,9 +552,38 @@ const EditProduct = () => {
                         type="button"
                         onClick={() => removeVariantColor(idx)}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => updateVariantColorImages(idx, e.target.files)}
+                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+                      />
+                      <p className="text-xs text-gray-500">Ảnh đầu tiên là ảnh đại diện, tối đa 4 ảnh/màu</p>
+                      {(color.imagePreviews?.length > 0 || color.serverImages?.length > 0) && (
+                        <div className="flex gap-2 flex-wrap">
+                          {color.imagePreviews?.map((preview, previewIdx) => (
+                            <img
+                              key={`color-preview-${idx}-${previewIdx}`}
+                              src={preview}
+                              alt="preview"
+                              className="w-12 h-12 object-cover rounded border"
+                            />
+                          ))}
+                          {color.imagePreviews?.length === 0 && color.serverImages?.slice(0, 6).map((img, imageIdx) => (
+                            <img
+                              key={`color-server-${idx}-${imageIdx}`}
+                              src={img.url}
+                              alt="variant"
+                              className="w-12 h-12 object-cover rounded border"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -598,12 +592,12 @@ const EditProduct = () => {
                   onClick={addVariantColor}
                   className="mt-3 flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm font-medium"
                 >
-                  <Plus size={16} /> Them mau
+                  <Plus size={16} /> Thêm màu
                 </button>
               </div>
 
               <div>
-                <p className="text-sm font-semibold text-gray-700 mb-2">Dung luong theo dong may</p>
+                <p className="text-sm font-semibold text-gray-700 mb-2">Dung lượng theo dòng máy</p>
                 <div className="space-y-2">
                   {variantStorages.map((storage, idx) => (
                     <div key={`storage-${idx}`} className="flex gap-2 items-center">
@@ -629,7 +623,7 @@ const EditProduct = () => {
                   onClick={addVariantStorage}
                   className="mt-3 flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm font-medium"
                 >
-                  <Plus size={16} /> Them dung luong
+                  <Plus size={16} /> Thêm dung lượng
                 </button>
               </div>
 
@@ -639,7 +633,7 @@ const EditProduct = () => {
                   onClick={buildVariantsFromOptions}
                   className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600"
                 >
-                  Tao bang bien the
+                  Tạo bảng biến thể
                 </button>
 
                 {variants.length > 0 && (
@@ -657,7 +651,7 @@ const EditProduct = () => {
                           value={variant.price}
                           onChange={(e) => updateVariant(idx, 'price', e.target.value)}
                           className="md:col-span-2 border rounded-lg px-2 py-1 text-sm"
-                          placeholder="Gia"
+                          placeholder="Giá"
                         />
                         <input
                           type="number"
@@ -665,7 +659,7 @@ const EditProduct = () => {
                           value={variant.quantity}
                           onChange={(e) => updateVariant(idx, 'quantity', e.target.value)}
                           className="md:col-span-2 border rounded-lg px-2 py-1 text-sm"
-                          placeholder="Ton kho"
+                          placeholder="Tồn kho"
                         />
                         <button
                           type="button"
