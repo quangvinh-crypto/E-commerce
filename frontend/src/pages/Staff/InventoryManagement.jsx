@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { 
   Package, AlertTriangle, TrendingDown, TrendingUp, 
-  Search, Filter, Edit2, Save, X, History, Download
+  Search, Download, ChevronDown, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import productService from '../../services/productService';
@@ -20,10 +20,9 @@ const InventoryManagement = () => {
     sortBy: 'quantity',
     sortOrder: 'ASC',
   });
-  const [editingId, setEditingId] = useState(null);
-  const [editQuantity, setEditQuantity] = useState(0);
-  const [adjustmentNote, setAdjustmentNote] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState([]);
+  const [productDrafts, setProductDrafts] = useState({});
+  const [variantDrafts, setVariantDrafts] = useState({});
 
   const { data, isLoading } = useQuery(
     ['inventory', filters],
@@ -45,14 +44,14 @@ const InventoryManagement = () => {
   const { data: categoriesData } = useQuery('categories', () => categoryService.getCategories());
 
   const updateStockMutation = useMutation(
-    ({ id, quantity }) => productService.updateProduct(id, { quantity }),
+    ({ id, payload }) => productService.updateProduct(id, payload),
     {
       onSuccess: () => {
         queryClient.invalidateQueries('inventory');
         queryClient.invalidateQueries('products');
         toast.success('Cập nhật tồn kho thành công');
-        setEditingId(null);
-        setAdjustmentNote('');
+        setProductDrafts({});
+        setVariantDrafts({});
       },
       onError: () => {
         toast.error('Cập nhật thất bại');
@@ -60,23 +59,101 @@ const InventoryManagement = () => {
     }
   );
 
-  const handleStartEdit = (product) => {
-    setEditingId(product.id);
-    setEditQuantity(product.quantity);
+  const resolveDraftQuantity = (draftValue, fallback) => {
+    if (draftValue === '' || draftValue === undefined || draftValue === null) {
+      return Number(fallback) || 0;
+    }
+
+    const nextValue = Number.parseInt(draftValue, 10);
+    return Number.isNaN(nextValue) ? Number(fallback) || 0 : nextValue;
   };
 
-  const handleSaveStock = (productId) => {
-    if (editQuantity < 0) {
+  const handleSaveStock = (product) => {
+    const nextQuantity = resolveDraftQuantity(productDrafts[product.id], product.quantity);
+
+    if (nextQuantity < 0) {
       toast.error('Số lượng không được âm');
       return;
     }
-    updateStockMutation.mutate({ id: productId, quantity: editQuantity });
+
+    updateStockMutation.mutate({ id: product.id, payload: { quantity: nextQuantity } });
   };
 
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditQuantity(0);
-    setAdjustmentNote('');
+  const handleProductStockEnter = (event, product) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    handleSaveStock(product);
+  };
+
+  const toggleExpanded = (productId) => {
+    setExpandedProducts((prev) =>
+      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
+    );
+  };
+
+  const getVariantRows = (product) => {
+    const activeVariants = Array.isArray(product?.variants)
+      ? product.variants.filter((variant) => variant?.isActive !== false)
+      : [];
+
+    if (activeVariants.length > 0) return activeVariants;
+
+    return [
+      {
+        id: 'default',
+        color: 'Mac dinh',
+        storage: 'Mac dinh',
+        quantity: Number(product?.quantity) || 0,
+        price: Number(product?.price) || 0,
+        sku: null,
+        images: Array.isArray(product?.images) ? product.images : [],
+        isActive: true,
+      },
+    ];
+  };
+
+  const handleSaveVariantStock = (product, variant) => {
+    const variantId = variant.id || variant._id || 'default';
+    const variantKey = `${product.id}:${variantId}`;
+    const nextQuantity = resolveDraftQuantity(variantDrafts[variantKey], variant.quantity);
+
+    if (nextQuantity < 0) {
+      toast.error('Số lượng không được âm');
+      return;
+    }
+
+    const sourceVariants = Array.isArray(product?.variants) && product.variants.length > 0
+      ? product.variants
+      : getVariantRows(product);
+
+    const updatedVariants = sourceVariants.map((item, index) => {
+      const itemId = item.id || item._id || `default-${index}`;
+      const targetId = variant.id || variant._id || 'default';
+      const isMatched = String(itemId) === String(targetId);
+
+      return {
+        id: item.id || item._id,
+        color: item.color,
+        colorHex: item.colorHex || null,
+        storage: item.storage,
+        price: Number(item.price) || 0,
+        quantity: isMatched ? nextQuantity : Number(item.quantity) || 0,
+        sku: item.sku || null,
+        images: Array.isArray(item.images) ? item.images : [],
+        isActive: item.isActive !== false,
+      };
+    });
+
+    updateStockMutation.mutate({
+      id: product.id,
+      payload: { variants: updatedVariants },
+    });
+  };
+
+  const handleVariantStockEnter = (event, product, variant) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    handleSaveVariantStock(product, variant);
   };
 
   const exportInventory = () => {
@@ -298,7 +375,8 @@ const InventoryManagement = () => {
               </thead>
               <tbody className="divide-y">
                 {filteredProducts.map((product) => {
-                  const isEditing = editingId === product.id;
+                  const variantRows = getVariantRows(product);
+                  const isExpanded = expandedProducts.includes(product.id);
                   const stockStatus = product.quantity === 0 
                     ? { label: 'Hết hàng', color: 'bg-red-100 text-red-800' }
                     : product.quantity <= 10 
@@ -306,92 +384,136 @@ const InventoryManagement = () => {
                     : { label: 'Còn hàng', color: 'bg-green-100 text-green-800' };
 
                   return (
-                    <tr key={product.id} className={`hover:bg-gray-50 ${isEditing ? 'bg-blue-50' : ''}`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                            {product.images?.length > 0 ? (
-                              <img src={getImageUrl(product.images[0])} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Package size={20} className="text-gray-300" />
+                    <Fragment key={product.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(product.id)}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="text-gray-500 flex-shrink-0">
+                                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                               </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-800 line-clamp-1">{product.name}</p>
-                            <p className="text-xs text-gray-500">SKU: #{product.id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {product.category?.name || '-'}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-gray-800">
-                        {formatPrice(product.price)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center">
-                          {isEditing ? (
+                              <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                {product.images?.length > 0 ? (
+                                  <img src={getImageUrl(product.images[0])} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Package size={20} className="text-gray-300" />
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-800 line-clamp-1">{product.name}</p>
+                                <p className="text-xs text-gray-500">SKU: #{product.id} • {variantRows.length} biến thể</p>
+                              </div>
+                            </div>
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {product.category?.name || '-'}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-800">
+                          {formatPrice(product.price)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center">
                             <input
                               type="number"
-                              value={editQuantity}
-                              onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
-                              className="w-20 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500"
                               min="0"
-                              autoFocus
+                              value={
+                                productDrafts[product.id] !== undefined
+                                  ? productDrafts[product.id]
+                                  : String(Number(product.quantity) || 0)
+                              }
+                              onChange={(e) =>
+                                setProductDrafts((prev) => ({
+                                  ...prev,
+                                  [product.id]: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => handleProductStockEnter(e, product)}
+                              className="w-24 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500"
+                              title="Nhấn Enter để cập nhật tồn kho tổng"
                             />
-                          ) : (
-                            <span className={`px-3 py-1 rounded-lg font-semibold ${
-                              product.quantity === 0 ? 'bg-red-100 text-red-800' :
-                              product.quantity <= 10 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {product.quantity}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${stockStatus.color}`}>
-                          {stockStatus.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatPrice(product.price * product.quantity)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
-                          {isEditing ? (
-                            <>
-                              <button
-                                onClick={() => handleSaveStock(product.id)}
-                                disabled={updateStockMutation.isLoading}
-                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                                title="Lưu"
-                              >
-                                <Save size={18} />
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                                title="Hủy"
-                              >
-                                <X size={18} />
-                              </button>
-                            </>
-                          ) : (
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${stockStatus.color}`}>
+                            {stockStatus.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {formatPrice(product.price * product.quantity)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => handleStartEdit(product)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                              title="Chỉnh sửa tồn kho"
+                              onClick={() => toggleExpanded(product.id)}
+                              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                              title={isExpanded ? 'Thu gọn biến thể' : 'Xem biến thể'}
                             >
-                              <Edit2 size={18} />
+                              {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="bg-gray-50/70">
+                          <td colSpan={7} className="px-4 py-3">
+                            <div className="border rounded-lg bg-white overflow-hidden">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 border-b">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Màu sắc</th>
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Dung lượng</th>
+                                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Giá</th>
+                                    <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 uppercase">Tồn kho</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                  {variantRows.map((variant, index) => {
+                                    const variantId = variant.id || variant._id || `default-${index}`;
+                                    const currentVariantKey = `${product.id}:${variantId}`;
+
+                                    return (
+                                      <tr key={currentVariantKey}>
+                                        <td className="px-4 py-2 text-gray-700">{variant.color || 'Mac dinh'}</td>
+                                        <td className="px-4 py-2 text-gray-700">{variant.storage || 'Mac dinh'}</td>
+                                        <td className="px-4 py-2 text-gray-700">{formatPrice(variant.price || product.price)}</td>
+                                        <td className="px-4 py-2 text-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={
+                                              variantDrafts[currentVariantKey] !== undefined
+                                                ? variantDrafts[currentVariantKey]
+                                                : String(Number(variant.quantity) || 0)
+                                            }
+                                            onChange={(e) =>
+                                              setVariantDrafts((prev) => ({
+                                                ...prev,
+                                                [currentVariantKey]: e.target.value,
+                                              }))
+                                            }
+                                            onKeyDown={(e) => handleVariantStockEnter(e, product, variant)}
+                                            className="w-24 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-blue-500"
+                                            title="Nhấn Enter để cập nhật tồn kho biến thể"
+                                          />
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
