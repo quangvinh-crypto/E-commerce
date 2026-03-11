@@ -2,7 +2,7 @@ import api from './api';
 
 const buildProductFormData = (productData = {}) => {
   const formData = new FormData();
-  const { primaryImage, detailImages, specifications, ...rest } = productData;
+  const { primaryImage, detailImages, specifications, variants, ...rest } = productData;
 
   Object.entries(rest).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
@@ -11,6 +11,27 @@ const buildProductFormData = (productData = {}) => {
 
   if (specifications && Object.keys(specifications).length > 0) {
     formData.append('specifications', JSON.stringify(specifications));
+  }
+
+  if (Array.isArray(variants) && variants.length > 0) {
+    const variantPayload = variants.map((variant) => {
+      const { localImages, ...restVariant } = variant;
+      return restVariant;
+    });
+    formData.append('variants', JSON.stringify(variantPayload));
+
+    const appendedVariantKeys = new Set();
+    variants.forEach((variant) => {
+      if (!variant?.clientKey) return;
+      if (!Array.isArray(variant.localImages)) return;
+      if (appendedVariantKeys.has(variant.clientKey)) return;
+      appendedVariantKeys.add(variant.clientKey);
+      variant.localImages.forEach((file) => {
+        if (file instanceof File) {
+          formData.append(`variantImages:${variant.clientKey}`, file);
+        }
+      });
+    });
   }
 
   if (primaryImage instanceof File) {

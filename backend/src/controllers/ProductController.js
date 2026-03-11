@@ -1,5 +1,7 @@
 const ProductService = require('../services/ProductService');
 const CacheService = require('../services/CacheService');
+const CartService = require('../services/CartService');
+const WishlistService = require('../services/WishlistService');
 
 const PRODUCT_CACHE_SCOPES_TO_INVALIDATE = [
   'products:list',
@@ -162,6 +164,10 @@ class ProductController {
 
       const result = await ProductService.deleteProduct(id);
       await CacheService.invalidateScopes(PRODUCT_CACHE_SCOPES_TO_INVALIDATE);
+      await Promise.all([
+        CartService.removeProductFromAllCarts(id).catch(() => {}),
+        WishlistService.removeProductFromAllWishlists(id).catch(() => {}),
+      ]);
 
       res.status(200).json({
         success: true,

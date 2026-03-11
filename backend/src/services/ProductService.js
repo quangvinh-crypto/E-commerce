@@ -24,6 +24,101 @@ class ProductService {
     return null;
   }
 
+  parseVariants(variants) {
+    if (variants === undefined) return undefined;
+    if (variants === null || variants === '') return [];
+
+    let parsedVariants = variants;
+    if (typeof variants === 'string') {
+      try {
+        parsedVariants = JSON.parse(variants);
+      } catch (_) {
+        throw new Error('Variants must be a valid JSON array');
+      }
+    }
+
+    if (!Array.isArray(parsedVariants)) {
+      throw new Error('Variants must be an array');
+    }
+
+    const normalized = parsedVariants
+      .map((variant) => ({
+        _id: variant?.id || variant?._id,
+        clientKey: variant?.clientKey ? String(variant.clientKey).trim() : null,
+        color: String(variant?.color || '').trim(),
+        colorHex: variant?.colorHex ? String(variant.colorHex).trim() : null,
+        storage: String(variant?.storage || '').trim(),
+        price: Number(variant?.price),
+        quantity: Number.isFinite(Number(variant?.quantity)) ? Number(variant.quantity) : 0,
+        sku: variant?.sku ? String(variant.sku).trim() : null,
+        images: Array.isArray(variant?.images) ? variant.images : [],
+        isActive: variant?.isActive !== false,
+      }))
+      .filter((variant) => variant.color && variant.storage);
+
+    normalized.forEach((variant) => {
+      if (variant._id && !mongoose.Types.ObjectId.isValid(String(variant._id))) {
+        delete variant._id;
+      }
+    });
+
+    const duplicateKey = new Set();
+    for (const variant of normalized) {
+      if (!Number.isFinite(variant.price) || variant.price < 0) {
+        throw new Error('Variant price must be a non-negative number');
+      }
+
+      if (!Number.isFinite(variant.quantity) || variant.quantity < 0) {
+        throw new Error('Variant quantity must be a non-negative number');
+      }
+
+      const combo = `${variant.color.toLowerCase()}::${variant.storage.toLowerCase()}`;
+      if (duplicateKey.has(combo)) {
+        throw new Error(`Duplicate variant combination: ${variant.color} / ${variant.storage}`);
+      }
+      duplicateKey.add(combo);
+    }
+
+    return normalized;
+  }
+
+  buildDefaultVariant({ price, quantity, images = [] }) {
+    const parsedPrice = Number(price);
+    const parsedQuantity = Number(quantity);
+
+    return [
+      {
+        color: 'Mac dinh',
+        colorHex: '#737373',
+        storage: 'Mac dinh',
+        price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+        quantity: Number.isFinite(parsedQuantity) ? parsedQuantity : 0,
+        sku: null,
+        images,
+        isActive: true,
+      },
+    ];
+  }
+
+  calculateAggregateFromVariants(variants = [], fallback = {}) {
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return {
+        price: Number(fallback.price) || 0,
+        quantity: Number(fallback.quantity) || 0,
+      };
+    }
+
+    const active = variants.filter((variant) => variant.isActive !== false);
+    const source = active.length > 0 ? active : variants;
+    const prices = source.map((variant) => Number(variant.price)).filter((value) => Number.isFinite(value));
+    const quantities = source.map((variant) => Number(variant.quantity)).filter((value) => Number.isFinite(value));
+
+    return {
+      price: prices.length > 0 ? Math.min(...prices) : Number(fallback.price) || 0,
+      quantity: quantities.length > 0 ? quantities.reduce((sum, value) => sum + value, 0) : Number(fallback.quantity) || 0,
+    };
+  }
+
   async getAllProducts(filters = {}, options = {}) {
     const { categoryId, search, minPrice, maxPrice, isActive, includeCategory = true } = filters;
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC' } = options;
@@ -74,24 +169,35 @@ class ProductService {
   }
 
   async createProduct(productData, files = []) {
-    const { name, description, price, quantity, categoryId, isActive, specifications } = productData;
+    const { name, description, price, quantity, categoryId, isActive, specifications, variants } = productData;
     const parsedSpecifications = this.parseSpecifications(specifications);
+    let parsedVariants = this.parseVariants(variants);
 
     if (categoryId) {
       const category = await Category.findById(categoryId);
       if (!category) throw new Error('Category not found');
     }
 
-    const images = await this.uploadImages(files);
+    const productImageFiles = (files || []).filter((file) => file.fieldname === 'images');
+    const images = await this.uploadImages(productImageFiles);
+
+    if (!parsedVariants || parsedVariants.length === 0) {
+      parsedVariants = this.buildDefaultVariant({ price, quantity, images });
+    } else {
+      parsedVariants = await this.attachVariantImages(parsedVariants, files);
+    }
+    const aggregate = this.calculateAggregateFromVariants(parsedVariants, { price, quantity });
+    const representativeImages = this.extractRepresentativeImages(parsedVariants, images);
 
     const product = await Product.create({
       name,
       description: description || null,
-      price,
-      quantity: quantity || 0,
+      price: aggregate.price,
+      quantity: aggregate.quantity,
       categoryId: categoryId || null,
       isActive: isActive !== undefined ? isActive : true,
-      images,
+      images: representativeImages,
+      variants: parsedVariants,
       specifications: parsedSpecifications,
     });
 
@@ -104,8 +210,9 @@ class ProductService {
     const product = await Product.findById(id);
     if (!product) throw new Error('Product not found');
 
-    const { name, description, price, quantity, categoryId, isActive, specifications } = updateData;
+    const { name, description, price, quantity, categoryId, isActive, specifications, variants } = updateData;
     const parsedSpecifications = this.parseSpecifications(specifications);
+    const parsedVariants = this.parseVariants(variants);
 
     if (categoryId !== undefined && categoryId !== String(product.categoryId) && categoryId !== null) {
       const category = await Category.findById(categoryId);
@@ -113,7 +220,8 @@ class ProductService {
     }
 
     if (files?.length > 0) {
-      const newImages = await this.uploadImages(files);
+      const productImageFiles = files.filter((file) => file.fieldname === 'images');
+      const newImages = await this.uploadImages(productImageFiles);
       product.images = [...(product.images || []), ...newImages];
     }
 
@@ -124,6 +232,25 @@ class ProductService {
     if (categoryId !== undefined) product.categoryId = categoryId;
     if (isActive !== undefined) product.isActive = isActive;
     if (specifications !== undefined) product.specifications = parsedSpecifications;
+    if (variants !== undefined) {
+      product.variants = await this.attachVariantImages(parsedVariants, files);
+    }
+
+    if ((!product.variants || product.variants.length === 0) && (price !== undefined || quantity !== undefined)) {
+      product.variants = this.buildDefaultVariant({
+        price: price !== undefined ? price : product.price,
+        quantity: quantity !== undefined ? quantity : product.quantity,
+        images: product.images,
+      });
+    }
+
+    const aggregate = this.calculateAggregateFromVariants(product.variants, {
+      price: price !== undefined ? price : product.price,
+      quantity: quantity !== undefined ? quantity : product.quantity,
+    });
+    product.price = aggregate.price;
+    product.quantity = aggregate.quantity;
+    product.images = this.extractRepresentativeImages(product.variants, product.images);
 
     await product.save();
 
@@ -214,6 +341,55 @@ class ProductService {
     }
 
     return images;
+  }
+
+  extractRepresentativeImages(variants = [], fallbackImages = []) {
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return Array.isArray(fallbackImages) ? fallbackImages : [];
+    }
+
+    const sourceVariant =
+      variants.find((variant) => Array.isArray(variant.images) && variant.images.length > 0) || null;
+
+    if (!sourceVariant) {
+      return Array.isArray(fallbackImages) ? fallbackImages : [];
+    }
+
+    return sourceVariant.images.slice(0, 4);
+  }
+
+  async attachVariantImages(variants = [], files = []) {
+    if (!Array.isArray(variants)) return [];
+
+    const groupedFiles = new Map();
+    (files || []).forEach((file) => {
+      if (!String(file.fieldname || '').startsWith('variantImages:')) return;
+      const key = String(file.fieldname).replace('variantImages:', '').trim();
+      if (!key) return;
+      const bucket = groupedFiles.get(key) || [];
+      bucket.push(file);
+      groupedFiles.set(key, bucket);
+    });
+
+    const uploadedByKey = new Map();
+    const normalized = [];
+    for (const variant of variants) {
+      const key = variant.clientKey || variant._id?.toString?.() || '';
+      const next = { ...variant };
+      if (key && groupedFiles.has(key)) {
+        if (!uploadedByKey.has(key)) {
+          const uploadedImages = await this.uploadImages(groupedFiles.get(key));
+          uploadedByKey.set(key, uploadedImages);
+        }
+        next.images = uploadedByKey.get(key);
+      } else if (!Array.isArray(next.images)) {
+        next.images = [];
+      }
+      delete next.clientKey;
+      normalized.push(next);
+    }
+
+    return normalized;
   }
 }
 

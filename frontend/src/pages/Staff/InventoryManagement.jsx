@@ -80,6 +80,20 @@ const InventoryManagement = () => {
   };
 
   const exportInventory = () => {
+    const delimiter = ';';
+    const escapeCsvValue = (value) => {
+      const normalized = value === null || value === undefined ? '' : String(value);
+      if (
+        normalized.includes('"') ||
+        normalized.includes('\n') ||
+        normalized.includes('\r') ||
+        normalized.includes(delimiter)
+      ) {
+        return `"${normalized.replace(/"/g, '""')}"`;
+      }
+      return normalized;
+    };
+
     const headers = ['ID', 'Tên sản phẩm', 'Danh mục', 'Tồn kho', 'Giá', 'Trạng thái'];
     const rows = products.map(p => [
       p.id,
@@ -89,7 +103,11 @@ const InventoryManagement = () => {
       p.price,
       p.quantity === 0 ? 'Hết hàng' : p.quantity <= 10 ? 'Sắp hết' : 'Còn hàng'
     ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => escapeCsvValue(cell)).join(delimiter))
+      .join('\n');
+
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

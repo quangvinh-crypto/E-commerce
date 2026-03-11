@@ -7,6 +7,8 @@ const searchRoutes = require('./searchRoutes');
 const orderRoutes = require('./orderRoutes');
 const paymentRoutes = require('./paymentRoutes');
 const couponRoutes = require('./couponRoutes');
+const cartRoutes = require('./cartRoutes');
+const wishlistRoutes = require('./wishlistRoutes');
 const { reviewRouter } = require('./reviewRoutes');
 
 const router = express.Router();
@@ -20,6 +22,8 @@ router.use('/search', searchRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payment', paymentRoutes);
 router.use('/coupons', couponRoutes);
+router.use('/cart', cartRoutes);
+router.use('/wishlist', wishlistRoutes);
 router.use('/reviews', reviewRouter);
 
 // API Info
@@ -35,6 +39,8 @@ router.get('/', (req, res) => {
       orders: '/api/orders',
       payment: '/api/payment',
       coupons: '/api/coupons',
+      cart: '/api/cart',
+      wishlist: '/api/wishlist',
       reviews: '/api/reviews',
       search: '/api/search',
       health: '/health'
