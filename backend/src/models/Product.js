@@ -32,6 +32,24 @@ const ProductSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    brand: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    categoryName: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    searchText: {
+      type: String,
+      default: '',
+    },
+    specificationTerms: {
+      type: [String],
+      default: [],
+    },
     specifications: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
@@ -79,6 +97,8 @@ const ProductSchema = new mongoose.Schema(
 ProductSchema.index({ categoryId: 1 });
 ProductSchema.index({ isActive: 1 });
 ProductSchema.index({ price: 1 });
+ProductSchema.index({ categoryName: 1 });
+ProductSchema.index({ brand: 1 });
 
 ProductSchema.virtual('category', {
   ref: 'Category',
