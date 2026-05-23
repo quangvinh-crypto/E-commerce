@@ -2,14 +2,14 @@
 
 ## Overview
 Du an E-COMMERCE gom 2 phan chinh: `frontend` (React SPA) va `backend` (Node.js/Express REST API).
-He thong ho tro 3 vai tro: khach hang, nhan vien, quan tri vien; bao gom mua hang, quan ly san pham, danh muc, don hang, coupon, review, thanh toan VNPay va tim kiem OpenSearch.
+He thong ho tro 3 vai tro: khach hang, nhan vien, quan tri vien; bao gom mua hang, quan ly san pham, danh muc, don hang, coupon, review, thanh toan VNPay va tim kiem Atlas Search.
 
 ## System Architecture
 - Frontend SPA goi REST API thong qua Axios.
 - Backend theo layer architecture: route -> controller -> service -> model.
 - Du lieu luu tren MongoDB (Mongoose).
 - Redis dung cho API response cache (cache-aside cho endpoint GET).
-- OpenSearch dung cho search index.
+- MongoDB Atlas Search dung cho search index.
 - Cloudinary dung de luu anh.
 
 ## Roles & Permissions
@@ -21,7 +21,7 @@ He thong ho tro 3 vai tro: khach hang, nhan vien, quan tri vien; bao gom mua han
 ## Tech Stack
 - Frontend: React 18, React Router, React Query, Axios, Tailwind CSS, Lucide.
 - Backend: Node.js, Express, Passport JWT/Google, Express Validator, Multer.
-- Data/Infra: MongoDB, Redis, OpenSearch, Cloudinary, VNPay.
+- Data/Infra: MongoDB, Redis, MongoDB Atlas Search, Cloudinary, VNPay.
 
 ## Installation Guide
 1. Cai dat dependency:
@@ -36,7 +36,7 @@ He thong ho tro 3 vai tro: khach hang, nhan vien, quan tri vien; bao gom mua han
 
 ## Important Notes
 - Redis la tuy chon: neu khong cau hinh backend van chay, chi tat cache.
-- OpenSearch la tuy chon: backend van chay neu OpenSearch khong ket noi duoc (tu dong fallback query DB).
+- Atlas Search la cach tim kiem chinh; neu query thang Atlas bi loi thi backend fallback sang query MongoDB thuong.
 - Cloudinary la tuy chon cho upload anh; neu chua cau hinh thi cac API upload se loi.
 - Tuyet doi khong commit file `.env` hoac bat ky key/secret thuc te len git.
 
@@ -75,7 +75,7 @@ E-COMMERCE/
 - `FRONTEND_URL`
 - `REDIS_URL` (uu tien) hoac `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD`, `REDIS_TLS`
 - `REDIS_CACHE_ENABLED`, `REDIS_DEFAULT_TTL`, `REDIS_KEY_PREFIX`
-- `OPENSEARCH_NODE`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`
+- `ATLAS_SEARCH_INDEX`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_BASE_URL`, `VNPAY_RETURN_URL`
 - `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_PASSWORD`, `ROOT_ADMIN_NAME`

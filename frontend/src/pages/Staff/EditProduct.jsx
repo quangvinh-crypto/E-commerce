@@ -37,6 +37,18 @@ const defaultVariantStorages = ['256GB', '512GB', '1TB'];
 
 const defaultSpecKeys = defaultSpecFields.map((f) => f.key);
 
+const normalizeColorKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-');
+
+const buildVariantClientKey = (color) => normalizeColorKey(color);
+
 const EditProduct = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,18 +72,6 @@ const EditProduct = () => {
   const [variantStorages, setVariantStorages] = useState(defaultVariantStorages);
   const [variants, setVariants] = useState([]);
   const managementBasePath = user?.role === 'admin' ? '/admin' : '/staff';
-
-  const normalizeColorKey = (value) =>
-    String(value || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-');
-
-  const buildVariantClientKey = (color) => normalizeColorKey(color);
 
   const { data: productData, isLoading: isLoadingProduct } = useQuery(
     ['product', id],

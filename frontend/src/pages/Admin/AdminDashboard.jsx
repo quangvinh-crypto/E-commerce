@@ -31,10 +31,10 @@ const AdminDashboard = () => {
     orderService.getAllOrders({ limit: 1000 })
   );
 
-  const orders = ordersData?.data || [];
-  const products = productsData?.data || [];
-  const users = usersData?.data || [];
-  const categories = categoriesData?.data || [];
+  const orders = useMemo(() => ordersData?.data || [], [ordersData]);
+  const products = useMemo(() => productsData?.data || [], [productsData]);
+  const users = useMemo(() => usersData?.data || [], [usersData]);
+  const categories = useMemo(() => categoriesData?.data || [], [categoriesData]);
 
   // Calculate stats
   const stats = useMemo(() => {
