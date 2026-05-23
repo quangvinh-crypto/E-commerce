@@ -74,10 +74,12 @@ export const getOptimizedCloudinaryUrl = (url, width = 300, height = 300, qualit
   return `${baseUrl}/image/upload/w_${width},h_${height},c_fill,q_${quality}/${imagePath}`;
 };
 
-export default {
+const imageHelper = {
   getImageUrl,
   getFirstImageUrl,
   imagesToUrls,
   isCloudinaryUrl,
   getOptimizedCloudinaryUrl,
 };
+
+export default imageHelper;

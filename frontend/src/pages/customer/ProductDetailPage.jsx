@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Star, ShoppingCart, Heart, Minus, Plus, ChevronRight, Cpu, Battery, Smartphone, HardDrive, Camera, Wifi, MessageSquare, Send } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
@@ -69,14 +69,6 @@ const ProductDetailPage = () => {
   const [submittingEditId, setSubmittingEditId] = useState('');
 
   useEffect(() => {
-    fetchProduct();
-  }, [id]);
-
-  useEffect(() => {
-    fetchReviews();
-  }, [id]);
-
-  useEffect(() => {
     if (!product) return;
     const imageList =
       product.images?.length > 0
@@ -88,7 +80,7 @@ const ProductDetailPage = () => {
     setSelectedImage(imageList[0]);
   }, [product]);
 
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       setLoading(true);
       const res = await productService.getProductById(id);
@@ -104,9 +96,9 @@ const ProductDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const fetchReviews = async (page = 1) => {
+  const fetchReviews = useCallback(async (page = 1) => {
     try {
       setLoadingReviews(true);
       const res = await reviewService.getProductReviews(id, { page, limit: 10 });
@@ -118,7 +110,15 @@ const ProductDetailPage = () => {
     } finally {
       setLoadingReviews(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
 
   const handleAddToCart = () => {
     if (!isAuthenticated) {

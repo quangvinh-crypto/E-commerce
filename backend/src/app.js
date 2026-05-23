@@ -18,9 +18,6 @@ require('./config/passport');
 
 const app = express();
 
-// Connect to database
-connectDB();
-
 // CORS configuration
 const corsOptions = {
   origin: [
@@ -100,6 +97,9 @@ const startServer = async () => {
   try {
     console.log('MongoDB models initialized');
 
+    // Wait for DB connection before any seed or search sync work.
+    await connectDB();
+
     const SeedService = require('./services/SeedService');
     await SeedService.ensureRootAdmin();
 
@@ -111,7 +111,6 @@ const startServer = async () => {
     // OpenSearch startup is disabled. Search now runs through MongoDB Atlas Search
     // and these calls only keep the denormalized search fields in sync.
     await SearchService.initIndex();
-    await SearchService.bulkIndexProducts();
 
     const server = app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

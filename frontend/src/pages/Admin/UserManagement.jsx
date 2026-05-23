@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Link } from 'react-router-dom';
-import {
-  Users, Search, Filter, UserPlus, Edit2, Trash2, Shield,
-  ShieldCheck, ShieldAlert, Mail, Phone, Calendar, MoreVertical,
+import { 
+  Users, Search, UserPlus, Trash2, Shield,
+  ShieldCheck, ShieldAlert, Mail, Phone,
   CheckCircle, XCircle, Download, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';

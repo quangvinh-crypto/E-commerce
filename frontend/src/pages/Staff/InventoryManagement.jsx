@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { 
   Package, AlertTriangle, TrendingDown, TrendingUp, 
-  Search, Filter, Edit2, Save, X, History, Download
+  Search, Edit2, Save, X, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import productService from '../../services/productService';
@@ -22,9 +22,6 @@ const InventoryManagement = () => {
   });
   const [editingId, setEditingId] = useState(null);
   const [editQuantity, setEditQuantity] = useState(0);
-  const [adjustmentNote, setAdjustmentNote] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
-
   const { data, isLoading } = useQuery(
     ['inventory', filters],
     async () => {
@@ -52,7 +49,6 @@ const InventoryManagement = () => {
         queryClient.invalidateQueries('products');
         toast.success('Cập nhật tồn kho thành công');
         setEditingId(null);
-        setAdjustmentNote('');
       },
       onError: () => {
         toast.error('Cập nhật thất bại');
@@ -76,7 +72,6 @@ const InventoryManagement = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditQuantity(0);
-    setAdjustmentNote('');
   };
 
   const exportInventory = () => {

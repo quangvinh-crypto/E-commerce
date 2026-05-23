@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User, Package, Heart, MapPin, LogOut, Camera, Lock, ChevronRight, Edit2 } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,12 +24,7 @@ const UserProfilePage = () => {
   const [newAddress, setNewAddress] = useState({ name: '', phone: '', address: '', isDefault: false });
   const [showAddressForm, setShowAddressForm] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
-    loadAddresses();
-  }, []);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const res = await authService.getCurrentUser();
       if (res.success && res.data) {
@@ -50,17 +45,22 @@ const UserProfilePage = () => {
         });
       }
     }
-  };
+  }, [user]);
 
-  const loadAddresses = () => {
+  const loadAddresses = useCallback(() => {
     const saved = localStorage.getItem('userAddresses');
     if (saved) setAddresses(JSON.parse(saved));
-  };
+  }, []);
 
   const saveAddresses = (newAddresses) => {
     localStorage.setItem('userAddresses', JSON.stringify(newAddresses));
     setAddresses(newAddresses);
   };
+
+  useEffect(() => {
+    fetchProfile();
+    loadAddresses();
+  }, [fetchProfile, loadAddresses]);
 
   const handleChange = (e) => {
     setProfileData((prev) => ({ ...prev, [e.target.name]: e.target.value }));

@@ -240,7 +240,7 @@ class SearchService {
     return filter;
   }
 
-  buildAtlasQuery(query) {
+  buildAtlasQuery(query, filters = {}) {
     const rawQuery = String(query || '').trim();
     if (!rawQuery) return null;
 
@@ -326,7 +326,7 @@ class SearchService {
       compound: {
         should,
         minimumShouldMatch: 1,
-        filter: this.buildAtlasFilter({}),
+        filter: this.buildAtlasFilter(filters),
       },
     };
   }
@@ -411,11 +411,10 @@ class SearchService {
       const sortDirection = String(sortOrder).toLowerCase() === 'asc' ? 1 : -1;
       const supportedSortFields = new Set(['_score', 'name', 'price', 'createdAt', 'quantity', 'brand', 'categoryName']);
       const effectiveSortBy = supportedSortFields.has(sortBy) ? sortBy : '_score';
-      const atlasFilter = this.buildAtlasFilter(filters);
       const searchStage = {
         $search: {
           index: ATLAS_SEARCH_INDEX,
-          ...this.buildAtlasQuery(rawQuery),
+          ...this.buildAtlasQuery(rawQuery, filters),
         },
       };
 
@@ -446,28 +445,6 @@ class SearchService {
 
       const [result] = await Product.aggregate([
         searchStage,
-        ...(atlasFilter.length > 0
-          ? [{
-              $match: {
-                $and: atlasFilter.map((condition) => {
-                  if (condition.equals) {
-                    return {
-                      [condition.equals.path]: condition.equals.value,
-                    };
-                  }
-
-                  if (condition.range) {
-                    const range = {};
-                    if (condition.range.gte !== undefined) range.$gte = condition.range.gte;
-                    if (condition.range.lte !== undefined) range.$lte = condition.range.lte;
-                    return { [condition.range.path]: range };
-                  }
-
-                  return condition;
-                }),
-              },
-            }]
-          : []),
         projectionStage,
         { $sort: sortStage },
         {
