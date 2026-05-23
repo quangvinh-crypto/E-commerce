@@ -284,14 +284,6 @@ const ProductDetailPage = () => {
     fetchReviews();
   }, [fetchReviews]);
 
-  useEffect(() => {
-    fetchProduct();
-  }, [fetchProduct]);
-
-  useEffect(() => {
-    fetchReviews();
-  }, [fetchReviews]);
-
   const handleAddToCart = () => {
     if (!isAuthenticated) {
       toast.error('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng');

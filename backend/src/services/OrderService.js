@@ -1,5 +1,6 @@
 const { Order, OrderItem, Product } = require('../models');
 const CouponService = require('./CouponService');
+const OrderInventoryService = require('./order/OrderInventoryService');
 
 class OrderService {
   generateOrderNumber() {
@@ -74,16 +75,9 @@ class OrderService {
         throw new Error(`Product ${product.name} is not available`);
       }
 
-      let selectedVariant = null;
-      if (item.variantId) {
-        selectedVariant = (product.variants || []).find(
-          (variant) => String(variant._id) === String(item.variantId) && variant.isActive !== false
-        );
-        if (!selectedVariant) {
-          throw new Error(`Variant not found for ${product.name}`);
-        }
-      } else if (Array.isArray(product.variants) && product.variants.length > 0) {
-        selectedVariant = product.variants.find((variant) => variant.isActive !== false) || product.variants[0];
+      const selectedVariant = OrderInventoryService.findSelectedVariant(product, item.variantId);
+      if (item.variantId && !selectedVariant) {
+        throw new Error(`Variant not found for ${product.name}`);
       }
 
       const stockKey = `${String(item.productId || '')}::${String(selectedVariant?._id || item.variantId || '')}`;
@@ -161,34 +155,7 @@ class OrderService {
       const [productId, variantId] = stockKey.split('::');
       if (!productId) continue;
 
-      if (variantId) {
-        const updateResult = await Product.updateOne(
-          {
-            _id: productId,
-            'variants._id': variantId,
-            'variants.quantity': { $gte: requiredQty },
-          },
-          {
-            $inc: {
-              'variants.$.quantity': -requiredQty,
-              quantity: -requiredQty,
-            },
-          }
-        );
-
-        if (!updateResult.modifiedCount) {
-          throw new Error('Failed to reserve stock for selected variant');
-        }
-      } else {
-        const updateResult = await Product.updateOne(
-          { _id: productId, quantity: { $gte: requiredQty } },
-          { $inc: { quantity: -requiredQty } }
-        );
-
-        if (!updateResult.modifiedCount) {
-          throw new Error('Failed to reserve stock for product');
-        }
-      }
+      await OrderInventoryService.reserveStock(productId, variantId || null, requiredQty);
     }
 
     return this.getOrderById(order.id, userId);
@@ -253,17 +220,7 @@ class OrderService {
     }
 
     for (const item of order.items) {
-      const product = await Product.findById(item.productId);
-      if (product) {
-        product.quantity += item.quantity;
-        if (item.variantId && Array.isArray(product.variants)) {
-          const variant = product.variants.find((entry) => String(entry._id) === String(item.variantId));
-          if (variant) {
-            variant.quantity += item.quantity;
-          }
-        }
-        await product.save();
-      }
+      await OrderInventoryService.restoreItemStock(item);
     }
 
     order.status = 'cancelled';
