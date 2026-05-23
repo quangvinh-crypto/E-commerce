@@ -7,6 +7,7 @@ jest.mock('../../src/models', () => ({
   },
   Product: {
     find: jest.fn(),
+    updateOne: jest.fn(),
     bulkWrite: jest.fn(),
   },
 }));
@@ -47,7 +48,7 @@ describe('OrderService.createOrder', () => {
 
     Order.create.mockResolvedValue({ id: 'o1' });
     OrderItem.insertMany.mockResolvedValue([]);
-    Product.bulkWrite.mockResolvedValue({});
+    Product.updateOne.mockResolvedValue({ modifiedCount: 1 });
 
     jest.spyOn(OrderService, 'getOrderById').mockResolvedValue({ id: 'o1' });
 
@@ -66,20 +67,16 @@ describe('OrderService.createOrder', () => {
     expect(Product.find).toHaveBeenCalledWith({ _id: { $in: ['p1', 'p2'] } });
     expect(Order.create).toHaveBeenCalledTimes(1);
     expect(OrderItem.insertMany).toHaveBeenCalledTimes(1);
-    expect(Product.bulkWrite).toHaveBeenCalledWith([
-      {
-        updateOne: {
-          filter: { _id: 'p1' },
-          update: { $inc: { quantity: -3 } },
-        },
-      },
-      {
-        updateOne: {
-          filter: { _id: 'p2' },
-          update: { $inc: { quantity: -1 } },
-        },
-      },
-    ]);
+    expect(Product.updateOne).toHaveBeenNthCalledWith(
+      1,
+      { _id: 'p1', quantity: { $gte: 3 } },
+      { $inc: { quantity: -3 } }
+    );
+    expect(Product.updateOne).toHaveBeenNthCalledWith(
+      2,
+      { _id: 'p2', quantity: { $gte: 1 } },
+      { $inc: { quantity: -1 } }
+    );
     expect(result).toEqual({ id: 'o1' });
   });
 
@@ -107,7 +104,7 @@ describe('OrderService.createOrder', () => {
 
     expect(Order.create).not.toHaveBeenCalled();
     expect(OrderItem.insertMany).not.toHaveBeenCalled();
-    expect(Product.bulkWrite).not.toHaveBeenCalled();
+    expect(Product.updateOne).not.toHaveBeenCalled();
   });
 
   it('applies coupon discount during order creation', async () => {
@@ -134,7 +131,7 @@ describe('OrderService.createOrder', () => {
 
     Order.create.mockResolvedValue({ id: 'o2' });
     OrderItem.insertMany.mockResolvedValue([]);
-    Product.bulkWrite.mockResolvedValue({});
+    Product.updateOne.mockResolvedValue({ modifiedCount: 1 });
 
     jest.spyOn(OrderService, 'getOrderById').mockResolvedValue({ id: 'o2' });
 

@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
-const { getESClient, isESConnected } = require('../config/elasticsearch');
 const { Product } = require('../models');
 
-const PRODUCT_INDEX = 'products';
+// MongoDB Atlas Search index name.
+// Create this index in Atlas for the Product collection with searchable fields:
+// name, description, brand, categoryName, searchText, specificationTerms, price,
+// categoryId, isActive, createdAt, images.
+const ATLAS_SEARCH_INDEX = process.env.ATLAS_SEARCH_INDEX || 'products_search';
 
 class SearchService {
   normalizeSpecifications(specifications) {
@@ -142,10 +145,11 @@ class SearchService {
     const brand = this.extractBrand(product.name, specs);
     const specificationTerms = this.buildSpecificationTerms(specs);
     const firstImage = Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null;
+    const resolvedCategoryName = categoryName || product.categoryName || product.category?.name || null;
     const searchText = [
       product.name,
       product.description,
-      categoryName,
+      resolvedCategoryName,
       brand,
       ...specificationTerms,
     ]
@@ -154,14 +158,14 @@ class SearchService {
       .trim();
 
     return {
-      id: product.id.toString(),
+      id: product.id?.toString?.() || String(product._id || ''),
       name: product.name,
       description: product.description,
       price: parseFloat(product.price),
       quantity: product.quantity,
       categoryId: product.categoryId ? product.categoryId.toString() : null,
-      categoryName: categoryName || null,
-      brand: brand || null,
+      categoryName: resolvedCategoryName,
+      brand,
       isActive: product.isActive,
       specifications: specs,
       specificationTerms,
@@ -171,368 +175,409 @@ class SearchService {
     };
   }
 
-  buildSearchClauses(query) {
-    const rawQuery = String(query || '').trim();
-    if (!rawQuery) return [];
-
-    const normalizedRawQuery = this.normalizeText(rawQuery);
-    const compactRawQuery = normalizedRawQuery.replace(/\s+/g, '');
-
-    const tokens = rawQuery.split(/\s+/).filter(Boolean);
-    const tokenVariants = Array.from(
-      new Set(
-        tokens.flatMap((token) => {
-          const normalized = this.normalizeToken(token);
-          const compact = normalized.replace(/\s+/g, '');
-          return [token, normalized, compact].filter((value) => value && value.length >= 2);
-        })
-      )
-    );
-
-    const queryVariants = new Set([rawQuery, normalizedRawQuery, compactRawQuery]);
-    tokenVariants.forEach((token) => {
-      this.expandUnitToken(token).forEach((variant) => queryVariants.add(variant));
-      this.expandNumericToken(token).forEach((variant) => queryVariants.add(variant));
-    });
-
-    return [
-      {
-        multi_match: {
-          query: rawQuery,
-          fields: ['name^5', 'brand^4', 'categoryName^2', 'description^2', 'searchText^3', 'specificationTerms^4'],
-          fuzziness: 'AUTO',
-          prefix_length: 1,
-          max_expansions: 50,
-          operator: 'or',
-        },
-      },
-      {
-        match_phrase_prefix: {
-          name: {
-            query: rawQuery,
-            boost: 3,
-          },
-        },
-      },
-      ...Array.from(queryVariants).map((token) => ({
-        multi_match: {
-          query: token,
-          fields: ['name^5', 'brand^5', 'searchText^3', 'specificationTerms^5', 'description'],
-          fuzziness: 'AUTO',
-          prefix_length: 0,
-          max_expansions: 50,
-          boost: 2,
-        },
-      })),
-    ];
-  }
-
-  extractHardSearchTokens(query = '') {
-    const tokens = String(query || '')
-      .trim()
-      .split(/\s+/)
-      .map((token) => this.normalizeToken(token))
-      .filter(Boolean);
-
-    const hardKeywords = new Set(['ram', 'rom', 'storage', 'ssd', 'hdd', 'gb', 'tb']);
-    const hardTokens = tokens.filter((token) => /\d/.test(token) || hardKeywords.has(token));
-
-    return Array.from(
-      new Set(
-        hardTokens.flatMap((token) => [
-          token,
-          ...this.expandUnitToken(token),
-          ...this.expandNumericToken(token),
-        ])
-      )
-    );
-  }
-
-  mapSearchHit(hit) {
-    const source = hit._source || {};
-    const imageUrl = source.image_url || null;
-    const images = imageUrl ? [{ url: imageUrl }] : [];
-
+  buildSearchMetadata(product, categoryName = null) {
+    const document = this.buildSearchDocument(product, categoryName);
     return {
-      ...source,
-      category: source.categoryId
-        ? {
-            id: source.categoryId,
-            name: source.categoryName || null,
-          }
-        : null,
-      category_name: source.categoryName || null,
-      image_url: imageUrl,
-      images,
-      _score: hit._score,
+      brand: document.brand,
+      categoryName: document.categoryName,
+      specificationTerms: document.specificationTerms,
+      searchText: document.searchText,
     };
   }
 
-  async initIndex() {
-    if (!isESConnected()) return false;
+  mapProductForResponse(product) {
+    const imageUrl = product.image_url || product.images?.[0]?.url || null;
 
-    try {
-      const client = getESClient();
-      const { body: exists } = await client.indices.exists({ index: PRODUCT_INDEX });
+    return {
+      ...product,
+      id: product.id?.toString?.() || String(product._id || ''),
+      category: product.categoryId
+        ? {
+            id: product.categoryId?.toString?.() || String(product.categoryId),
+            name: product.categoryName || null,
+          }
+        : null,
+      category_name: product.categoryName || null,
+      image_url: imageUrl,
+      images: Array.isArray(product.images) ? product.images : imageUrl ? [{ url: imageUrl }] : [],
+      _score: product.score,
+    };
+  }
 
-      if (!exists) {
-        await client.indices.create({
-          index: PRODUCT_INDEX,
-          body: {
-            settings: {
-              index: {
-                number_of_shards: 1,
-                number_of_replicas: 0,
-                refresh_interval: '30s',
-                codec: 'best_compression',
-              },
-              analysis: {
-                analyzer: {
-                  vietnamese: {
-                    type: 'custom',
-                    tokenizer: 'standard',
-                    filter: ['lowercase', 'asciifolding'],
-                  },
-                },
-              },
-            },
-            mappings: {
-              dynamic: false,
-              properties: {
-                id: { type: 'keyword' },
-                name: { type: 'text', analyzer: 'vietnamese', norms: false, fields: { keyword: { type: 'keyword' } } },
-                description: { type: 'text', analyzer: 'vietnamese', norms: false },
-                price: { type: 'float' },
-                quantity: { type: 'integer' },
-                categoryId: { type: 'keyword' },
-                categoryName: { type: 'text', analyzer: 'vietnamese', norms: false, fields: { keyword: { type: 'keyword' } } },
-                brand: { type: 'text', analyzer: 'vietnamese', norms: false, fields: { keyword: { type: 'keyword' } } },
-                isActive: { type: 'boolean' },
-                specifications: { type: 'object', enabled: false },
-                specificationTerms: { type: 'text', analyzer: 'vietnamese', norms: false },
-                searchText: { type: 'text', analyzer: 'vietnamese', norms: false },
-                image_url: { type: 'keyword', index: false, doc_values: false },
-                createdAt: { type: 'date' },
-              },
+  buildAtlasFilter(filters = {}) {
+    const { categoryId, minPrice, maxPrice, isActive } = filters;
+    const filter = [];
+
+    if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+      filter.push({
+        equals: {
+          path: 'categoryId',
+          value: new mongoose.Types.ObjectId(categoryId),
+        },
+      });
+    }
+
+    if (isActive !== undefined) {
+      filter.push({
+        equals: {
+          path: 'isActive',
+          value: Boolean(isActive),
+        },
+      });
+    }
+
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      const range = {
+        path: 'price',
+      };
+      const parsedMinPrice = Number(minPrice);
+      const parsedMaxPrice = Number(maxPrice);
+      if (minPrice !== undefined && Number.isFinite(parsedMinPrice)) range.gte = parsedMinPrice;
+      if (maxPrice !== undefined && Number.isFinite(parsedMaxPrice)) range.lte = parsedMaxPrice;
+      filter.push({ range });
+    }
+
+    return filter;
+  }
+
+  buildAtlasQuery(query, filters = {}) {
+    const rawQuery = String(query || '').trim();
+    if (!rawQuery) return null;
+
+    const should = [
+      {
+        text: {
+          query: rawQuery,
+          path: ['name', 'description', 'brand', 'categoryName', 'searchText', 'specificationTerms'],
+          fuzzy: {
+            maxEdits: 1,
+            prefixLength: 1,
+          },
+          score: {
+            boost: {
+              value: 2,
             },
           },
-        });
-        console.log('OpenSearch: Product index created');
-      }
-      return true;
-    } catch (error) {
-      console.error('OpenSearch init index error:', error.message);
-      return false;
+        },
+      },
+      {
+        text: {
+          query: rawQuery,
+          path: 'name',
+          fuzzy: {
+            maxEdits: 1,
+            prefixLength: 1,
+          },
+          score: {
+            boost: {
+              value: 5,
+            },
+          },
+        },
+      },
+      {
+        text: {
+          query: rawQuery,
+          path: 'brand',
+          fuzzy: {
+            maxEdits: 1,
+            prefixLength: 1,
+          },
+          score: {
+            boost: {
+              value: 4,
+            },
+          },
+        },
+      },
+      {
+        text: {
+          query: rawQuery,
+          path: 'categoryName',
+          fuzzy: {
+            maxEdits: 1,
+            prefixLength: 1,
+          },
+          score: {
+            boost: {
+              value: 3,
+            },
+          },
+        },
+      },
+      {
+        text: {
+          query: rawQuery,
+          path: 'specificationTerms',
+          fuzzy: {
+            maxEdits: 1,
+            prefixLength: 1,
+          },
+          score: {
+            boost: {
+              value: 4,
+            },
+          },
+        },
+      },
+    ];
+
+    return {
+      compound: {
+        should,
+        minimumShouldMatch: 1,
+        filter: this.buildAtlasFilter(filters),
+      },
+    };
+  }
+
+  async syncSearchFields(product) {
+    const populatedProduct = product?.category
+      ? product
+      : await Product.findById(product.id || product._id).populate({ path: 'category', select: 'name' });
+
+    if (!populatedProduct) {
+      return null;
     }
+
+    const metadata = this.buildSearchMetadata(populatedProduct, populatedProduct.category?.name || null);
+
+    await Product.updateOne(
+      { _id: populatedProduct.id },
+      {
+        $set: metadata,
+      }
+    );
+
+    return metadata;
+  }
+
+  async initIndex() {
+    return this.bulkIndexProducts();
   }
 
   async indexProduct(product) {
-    if (!isESConnected()) return false;
-
     try {
-      const client = getESClient();
-      const populated = await Product.findById(product.id).populate({ path: 'category', select: 'name' });
-      const document = this.buildSearchDocument(product, populated?.category?.name || null);
-
-      await client.index({
-        index: PRODUCT_INDEX,
-        id: product.id.toString(),
-        body: document,
-      });
+      await this.syncSearchFields(product);
       return true;
     } catch (error) {
-      console.error('OpenSearch index product error:', error.message);
+      console.error('Atlas Search sync product error:', error.message);
       return false;
     }
   }
 
-  async removeProduct(productId) {
-    if (!isESConnected()) return false;
-
-    try {
-      const client = getESClient();
-      await client.delete({ index: PRODUCT_INDEX, id: productId.toString() });
-      return true;
-    } catch (error) {
-      if (error.meta?.statusCode !== 404) {
-        console.error('OpenSearch remove product error:', error.message);
-      }
-      return false;
-    }
+  async removeProduct() {
+    // Search fields live inside the product document, so deleting the product
+    // removes it from Atlas Search automatically.
+    return true;
   }
 
   async bulkIndexProducts() {
-    if (!isESConnected()) return { success: false, message: 'OpenSearch not connected' };
-
     try {
-      const client = getESClient();
-      const { body: exists } = await client.indices.exists({ index: PRODUCT_INDEX });
-
-      if (exists) {
-        await client.indices.delete({ index: PRODUCT_INDEX });
-      }
-
-      const initialized = await this.initIndex();
-      if (!initialized) {
-        return { success: false, message: 'Failed to initialize search index' };
-      }
-
       const products = await Product.find().populate({ path: 'category', select: 'name' });
-      if (products.length === 0) return { success: true, indexed: 0 };
 
-      const body = products.flatMap((p) => [
-        { index: { _index: PRODUCT_INDEX, _id: p.id.toString() } },
-        this.buildSearchDocument(p, p.category?.name || null),
-      ]);
+      if (products.length === 0) {
+        return { success: true, indexed: 0 };
+      }
 
-      const { body: result } = await client.bulk({ body, refresh: true });
-      return { success: !result.errors, indexed: products.length, errors: result.errors };
+      const bulkOps = products.map((product) => ({
+        updateOne: {
+          filter: { _id: product.id },
+          update: {
+            $set: this.buildSearchMetadata(product, product.category?.name || null),
+          },
+        },
+      }));
+
+      await Product.bulkWrite(bulkOps, { ordered: false });
+
+      return { success: true, indexed: products.length };
     } catch (error) {
-      console.error('OpenSearch bulk index error:', error.message);
+      console.error('Atlas Search bulk sync error:', error.message);
       return { success: false, message: error.message };
     }
   }
 
   async search(query, filters = {}, options = {}) {
-    if (!isESConnected()) {
+    const rawQuery = String(query || '').trim();
+    if (!rawQuery) {
       return this.fallbackSearch(query, filters, options);
     }
 
     try {
-      const { categoryId, minPrice, maxPrice, isActive } = filters;
       const { page = 1, limit = 10, sortBy = '_score', sortOrder = 'desc' } = options;
-      const normalizedSortOrder = String(sortOrder).toLowerCase() === 'asc' ? 'asc' : 'desc';
-
-      const should = [];
-      const must = [];
-      const filter = [];
-
-      if (query) {
-        should.push(...this.buildSearchClauses(query));
-
-        const hardTokens = this.extractHardSearchTokens(query);
-        hardTokens.forEach((token) => {
-          must.push({
-            bool: {
-              should: [
-                { match: { specificationTerms: { query: token, operator: 'and', boost: 5 } } },
-                { match: { searchText: { query: token, operator: 'and', boost: 3 } } },
-                { match: { name: { query: token, operator: 'and', boost: 2 } } },
-              ],
-              minimum_should_match: 1,
-            },
-          });
-        });
-      }
-
-      if (categoryId) filter.push({ term: { categoryId: categoryId.toString() } });
-      if (isActive !== undefined) filter.push({ term: { isActive } });
-      if (minPrice || maxPrice) {
-        const range = { price: {} };
-        if (minPrice) range.price.gte = minPrice;
-        if (maxPrice) range.price.lte = maxPrice;
-        filter.push({ range });
-      }
-
-      const client = getESClient();
-      const { body: result } = await client.search({
-        index: PRODUCT_INDEX,
-        body: {
-          from: (page - 1) * limit,
-          size: limit,
-          query: {
-            bool: {
-              must,
-              should: should.length ? should : [{ match_all: {} }],
-              minimum_should_match: should.length ? 1 : 0,
-              filter,
-            },
-          },
-          sort: sortBy === '_score' ? [{ _score: normalizedSortOrder }] : [{ [sortBy]: normalizedSortOrder }],
-        },
-      });
-
-      if (result.hits.total?.value === 0 && query) {
-        return this.fallbackSearch(query, filters, options);
-      }
-
-      const rankedIds = result.hits.hits
-        .map((hit) => hit._id || hit?._source?.id)
-        .filter((id) => mongoose.Types.ObjectId.isValid(id));
-
-      if (rankedIds.length === 0) {
-        return this.fallbackSearch(query, filters, options);
-      }
-
-      const products = await Product.find({ _id: { $in: rankedIds } })
-        .populate({ path: 'category', select: 'name description' });
-
-      const productMap = new Map(products.map((product) => [product.id.toString(), product]));
-      const orderedProducts = rankedIds
-        .map((id) => productMap.get(id.toString()))
-        .filter(Boolean);
-
-      if (orderedProducts.length === 0) {
-        return this.fallbackSearch(query, filters, options);
-      }
-
-      const response = {
-        products: orderedProducts,
-        pagination: {
-          total: result.hits.total?.value || orderedProducts.length,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          totalPages: Math.ceil((result.hits.total?.value || orderedProducts.length) / limit),
+      const parsedPage = parseInt(page, 10);
+      const parsedLimit = parseInt(limit, 10);
+      const sortDirection = String(sortOrder).toLowerCase() === 'asc' ? 1 : -1;
+      const supportedSortFields = new Set(['_score', 'name', 'price', 'createdAt', 'quantity', 'brand', 'categoryName']);
+      const effectiveSortBy = supportedSortFields.has(sortBy) ? sortBy : '_score';
+      const searchStage = {
+        $search: {
+          index: ATLAS_SEARCH_INDEX,
+          ...this.buildAtlasQuery(rawQuery, filters),
         },
       };
 
-      return response;
+      const projectionStage = {
+        $project: {
+          _id: 1,
+          id: { $toString: '$_id' },
+          name: 1,
+          description: 1,
+          price: 1,
+          quantity: 1,
+          images: 1,
+          brand: 1,
+          categoryId: 1,
+          categoryName: 1,
+          isActive: 1,
+          specifications: 1,
+          specificationTerms: 1,
+          searchText: 1,
+          createdAt: 1,
+          score: { $meta: 'searchScore' },
+        },
+      };
+
+      const sortStage = effectiveSortBy === '_score'
+        ? { score: sortDirection, createdAt: -1 }
+        : { [effectiveSortBy]: sortDirection, score: -1, createdAt: -1 };
+
+      const [result] = await Product.aggregate([
+        searchStage,
+        projectionStage,
+        { $sort: sortStage },
+        {
+          $facet: {
+            products: [
+              { $skip: (parsedPage - 1) * parsedLimit },
+              { $limit: parsedLimit },
+            ],
+            meta: [{ $count: 'total' }],
+          },
+        },
+      ]);
+
+      const products = (result?.products || []).map((product) => this.mapProductForResponse(product));
+      const total = result?.meta?.[0]?.total || products.length;
+
+      if (total === 0) {
+        return this.fallbackSearch(query, filters, options);
+      }
+
+      return {
+        products,
+        pagination: {
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(total / parsedLimit),
+        },
+      };
     } catch (error) {
-      console.error('OpenSearch search error:', error.message);
+      console.error('Atlas Search search error:', error.message);
       return this.fallbackSearch(query, filters, options);
     }
   }
 
   async suggest(query, limit = 10) {
-    if (!isESConnected() || !query) return [];
+    const rawQuery = String(query || '').trim();
+    if (!rawQuery) return [];
 
     try {
-      const client = getESClient();
-      const { body: result } = await client.search({
-        index: PRODUCT_INDEX,
-        body: {
-          size: limit,
-          query: {
-            bool: {
+      const parsedLimit = parseInt(limit, 10) || 10;
+      const [result] = await Product.aggregate([
+        {
+          $search: {
+            index: ATLAS_SEARCH_INDEX,
+            compound: {
               should: [
-                { prefix: { 'name.keyword': { value: query, case_insensitive: true } } },
-                { match: { name: { query, fuzziness: 'AUTO' } } },
+                {
+                  autocomplete: {
+                    query: rawQuery,
+                    path: 'name',
+                    fuzzy: {
+                      maxEdits: 1,
+                      prefixLength: 1,
+                    },
+                  },
+                },
+                {
+                  autocomplete: {
+                    query: rawQuery,
+                    path: 'brand',
+                    fuzzy: {
+                      maxEdits: 1,
+                      prefixLength: 1,
+                    },
+                  },
+                },
+                {
+                  text: {
+                    query: rawQuery,
+                    path: ['name', 'brand', 'categoryName', 'searchText'],
+                    fuzzy: {
+                      maxEdits: 1,
+                      prefixLength: 1,
+                    },
+                  },
+                },
               ],
-              filter: [{ term: { isActive: true } }],
+              minimumShouldMatch: 1,
+              filter: [
+                {
+                  equals: {
+                    path: 'isActive',
+                    value: true,
+                  },
+                },
+              ],
             },
           },
-          _source: ['id', 'name', 'price'],
         },
-      });
+        {
+          $project: {
+            _id: 1,
+            id: { $toString: '$_id' },
+            name: 1,
+            price: 1,
+            images: 1,
+            categoryName: 1,
+            score: { $meta: 'searchScore' },
+          },
+        },
+        { $sort: { score: -1, name: 1 } },
+        { $limit: parsedLimit },
+      ]);
 
-      return result.hits.hits.map((hit) => hit._source);
+      return (result || []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        category_name: item.categoryName || null,
+        image_url: item.images?.[0]?.url || null,
+        _score: item.score,
+      }));
     } catch (error) {
-      console.error('OpenSearch suggest error:', error.message);
-      return [];
+      console.error('Atlas Search suggest error:', error.message);
+      return this.fallbackSuggest(query, limit);
     }
   }
 
   async fallbackSearch(query, filters = {}, options = {}) {
     const { categoryId, minPrice, maxPrice, isActive } = filters;
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC' } = options;
+    const effectiveSortBy = sortBy === '_score' ? 'createdAt' : sortBy;
 
     const where = {};
     if (isActive !== undefined) where.isActive = isActive;
     if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) where.categoryId = categoryId;
-    if (minPrice || maxPrice) {
+    if (minPrice !== undefined || maxPrice !== undefined) {
       where.price = {};
-      if (minPrice) where.price.$gte = minPrice;
-      if (maxPrice) where.price.$lte = maxPrice;
+      const parsedMinPrice = Number(minPrice);
+      const parsedMaxPrice = Number(maxPrice);
+      if (minPrice !== undefined && Number.isFinite(parsedMinPrice)) where.price.$gte = parsedMinPrice;
+      if (maxPrice !== undefined && Number.isFinite(parsedMaxPrice)) where.price.$lte = parsedMaxPrice;
     }
     if (query) {
       const rawQuery = String(query).trim();
@@ -550,26 +595,36 @@ class SearchService {
       where.$or = [
         { name: { $regex: rawQuery, $options: 'i' } },
         { description: { $regex: rawQuery, $options: 'i' } },
+        { brand: { $regex: rawQuery, $options: 'i' } },
+        { categoryName: { $regex: rawQuery, $options: 'i' } },
+        { searchText: { $regex: rawQuery, $options: 'i' } },
         ...tokenVariants.map((token) => ({ name: { $regex: token, $options: 'i' } })),
         ...tokenVariants.map((token) => ({ description: { $regex: token, $options: 'i' } })),
+        ...tokenVariants.map((token) => ({ brand: { $regex: token, $options: 'i' } })),
+        ...tokenVariants.map((token) => ({ categoryName: { $regex: token, $options: 'i' } })),
       ];
     }
 
-    const parsedPage = parseInt(page);
-    const parsedLimit = parseInt(limit);
+    const parsedPage = parseInt(page, 10);
+    const parsedLimit = parseInt(limit, 10);
     const sortDirection = String(sortOrder).toUpperCase() === 'ASC' ? 1 : -1;
 
     const [rows, count] = await Promise.all([
       Product.find(where)
         .populate({ path: 'category', select: 'name' })
-        .sort({ [sortBy]: sortDirection })
+        .sort({ [effectiveSortBy]: sortDirection })
         .skip((parsedPage - 1) * parsedLimit)
         .limit(parsedLimit),
       Product.countDocuments(where),
     ]);
 
+    const products = rows.map((product) => this.mapProductForResponse({
+      ...product.toObject(),
+      categoryName: product.categoryName || product.category?.name || null,
+    }));
+
     return {
-      products: rows,
+      products,
       pagination: {
         total: count,
         page: parsedPage,
@@ -578,6 +633,30 @@ class SearchService {
       },
       fallback: true,
     };
+  }
+
+  async fallbackSuggest(query, limit = 10) {
+    const rawQuery = String(query || '').trim();
+    if (!rawQuery) return [];
+
+    const docs = await Product.find({
+      isActive: true,
+      $or: [
+        { name: { $regex: rawQuery, $options: 'i' } },
+        { brand: { $regex: rawQuery, $options: 'i' } },
+        { categoryName: { $regex: rawQuery, $options: 'i' } },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit, 10) || 10);
+
+    return docs.map((product) => ({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      category_name: product.categoryName || null,
+      image_url: product.images?.[0]?.url || null,
+    }));
   }
 }
 

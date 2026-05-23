@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, X, Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { CustomerLayout } from '../../components/layout';
 import { ProductCard } from '../../components/features';
 import productService from '../../services/productService';
 import categoryService from '../../services/categoryService';
+import useDebounce from '../../hooks/useDebounce';
 
 const ProductListingPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,26 +25,21 @@ const ProductListingPage = () => {
   const [page, setPage] = useState(parseInt(searchParams.get('page')) || 1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const debouncedSearchInput = useDebounce(searchInput, 250);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    fetchProducts();
-    updateURL();
-  }, [filters, sortBy, sortOrder, page]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const res = await categoryService.getCategories();
       setCategories(res.data || []);
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
@@ -78,9 +74,9 @@ const ProductListingPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.category, filters.minPrice, filters.maxPrice, filters.search, page, sortBy, sortOrder]);
 
-  const updateURL = () => {
+  const updateURL = useCallback(() => {
     const params = new URLSearchParams();
     if (filters.search) params.set('search', filters.search);
     if (filters.category) params.set('category', filters.category);
@@ -90,12 +86,56 @@ const ProductListingPage = () => {
     if (sortOrder !== 'DESC') params.set('order', sortOrder);
     if (page > 1) params.set('page', page.toString());
     setSearchParams(params);
-  };
+  }, [filters.category, filters.maxPrice, filters.minPrice, filters.search, page, setSearchParams, sortBy, sortOrder]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  useEffect(() => {
+    fetchProducts();
+    updateURL();
+  }, [fetchProducts, updateURL]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSuggestions = async () => {
+      const query = debouncedSearchInput.trim();
+      if (query.length < 2) {
+        setSearchSuggestions([]);
+        setSuggestionsLoading(false);
+        return;
+      }
+
+      try {
+        setSuggestionsLoading(true);
+        const res = await productService.getSuggestions(query);
+        if (!isMounted) return;
+        setSearchSuggestions(res.data || []);
+      } catch (error) {
+        if (isMounted) {
+          setSearchSuggestions([]);
+        }
+      } finally {
+        if (isMounted) {
+          setSuggestionsLoading(false);
+        }
+      }
+    };
+
+    fetchSuggestions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [debouncedSearchInput]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     setFilters((prev) => ({ ...prev, search: searchInput }));
     setPage(1);
+    setShowSuggestions(false);
   };
 
   const handleFilterChange = (key, value) => {
@@ -141,10 +181,19 @@ const ProductListingPage = () => {
   const clearFilters = () => {
     setFilters({ category: '', minPrice: '', maxPrice: '', search: '' });
     setSearchInput('');
+    setSearchSuggestions([]);
+    setShowSuggestions(false);
     setSortBy('createdAt');
     setSortOrder('DESC');
     setPage(1);
     setSearchParams({});
+  };
+
+  const applySuggestion = (value) => {
+    setSearchInput(value);
+    setFilters((prev) => ({ ...prev, search: value }));
+    setPage(1);
+    setShowSuggestions(false);
   };
 
   const hasActiveFilters = filters.category || filters.minPrice || filters.maxPrice || filters.search;
@@ -260,10 +309,45 @@ const ProductListingPage = () => {
               <input
                 type="text"
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Tìm kiếm sản phẩm theo tên..."
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Tìm theo tên, thương hiệu, danh mục..."
                 className="w-full pl-12 pr-4 py-3 bg-zinc-900 border border-gray-800 text-gray-100 rounded-xl focus:outline-none focus:border-amber-500 transition-colors placeholder-gray-500"
               />
+              {showSuggestions && searchInput.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-gray-800 bg-zinc-950 shadow-xl">
+                  {suggestionsLoading ? (
+                    <div className="px-4 py-3 text-sm text-gray-400">Đang tìm gợi ý...</div>
+                  ) : searchSuggestions.length > 0 ? (
+                    <div className="max-h-80 overflow-auto">
+                      {searchSuggestions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applySuggestion(item.name)}
+                          className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-zinc-900"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-gray-100">{item.name}</div>
+                            <div className="truncate text-xs text-gray-500">{item.category_name || 'Không phân loại'}</div>
+                          </div>
+                          {item.price !== undefined && (
+                            <div className="shrink-0 text-sm font-semibold text-amber-500">
+                              {Number(item.price).toLocaleString('vi-VN')}đ
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-gray-500">Không có gợi ý phù hợp</div>
+                  )}
+                </div>
+              )}
             </div>
             <button
               type="submit"

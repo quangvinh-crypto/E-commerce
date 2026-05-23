@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const { Product, Category, Review } = require('../models');
 const { deleteImage } = require('../config/cloudinary');
 const SearchService = require('./SearchService');
+const ProductVariantService = require('./product/ProductVariantService');
+const ProductMediaService = require('./product/ProductMediaService');
 
 class ProductService {
   parseSpecifications(specifications) {
@@ -22,101 +24,6 @@ class ProductService {
     }
 
     return null;
-  }
-
-  parseVariants(variants) {
-    if (variants === undefined) return undefined;
-    if (variants === null || variants === '') return [];
-
-    let parsedVariants = variants;
-    if (typeof variants === 'string') {
-      try {
-        parsedVariants = JSON.parse(variants);
-      } catch (_) {
-        throw new Error('Variants must be a valid JSON array');
-      }
-    }
-
-    if (!Array.isArray(parsedVariants)) {
-      throw new Error('Variants must be an array');
-    }
-
-    const normalized = parsedVariants
-      .map((variant) => ({
-        _id: variant?.id || variant?._id,
-        clientKey: variant?.clientKey ? String(variant.clientKey).trim() : null,
-        color: String(variant?.color || '').trim(),
-        colorHex: variant?.colorHex ? String(variant.colorHex).trim() : null,
-        storage: String(variant?.storage || '').trim(),
-        price: Number(variant?.price),
-        quantity: Number.isFinite(Number(variant?.quantity)) ? Number(variant.quantity) : 0,
-        sku: variant?.sku ? String(variant.sku).trim() : null,
-        images: Array.isArray(variant?.images) ? variant.images : [],
-        isActive: variant?.isActive !== false,
-      }))
-      .filter((variant) => variant.color && variant.storage);
-
-    normalized.forEach((variant) => {
-      if (variant._id && !mongoose.Types.ObjectId.isValid(String(variant._id))) {
-        delete variant._id;
-      }
-    });
-
-    const duplicateKey = new Set();
-    for (const variant of normalized) {
-      if (!Number.isFinite(variant.price) || variant.price < 0) {
-        throw new Error('Variant price must be a non-negative number');
-      }
-
-      if (!Number.isFinite(variant.quantity) || variant.quantity < 0) {
-        throw new Error('Variant quantity must be a non-negative number');
-      }
-
-      const combo = `${variant.color.toLowerCase()}::${variant.storage.toLowerCase()}`;
-      if (duplicateKey.has(combo)) {
-        throw new Error(`Duplicate variant combination: ${variant.color} / ${variant.storage}`);
-      }
-      duplicateKey.add(combo);
-    }
-
-    return normalized;
-  }
-
-  buildDefaultVariant({ price, quantity, images = [] }) {
-    const parsedPrice = Number(price);
-    const parsedQuantity = Number(quantity);
-
-    return [
-      {
-        color: 'Mac dinh',
-        colorHex: '#737373',
-        storage: 'Mac dinh',
-        price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
-        quantity: Number.isFinite(parsedQuantity) ? parsedQuantity : 0,
-        sku: null,
-        images,
-        isActive: true,
-      },
-    ];
-  }
-
-  calculateAggregateFromVariants(variants = [], fallback = {}) {
-    if (!Array.isArray(variants) || variants.length === 0) {
-      return {
-        price: Number(fallback.price) || 0,
-        quantity: Number(fallback.quantity) || 0,
-      };
-    }
-
-    const active = variants.filter((variant) => variant.isActive !== false);
-    const source = active.length > 0 ? active : variants;
-    const prices = source.map((variant) => Number(variant.price)).filter((value) => Number.isFinite(value));
-    const quantities = source.map((variant) => Number(variant.quantity)).filter((value) => Number.isFinite(value));
-
-    return {
-      price: prices.length > 0 ? Math.min(...prices) : Number(fallback.price) || 0,
-      quantity: quantities.length > 0 ? quantities.reduce((sum, value) => sum + value, 0) : Number(fallback.quantity) || 0,
-    };
   }
 
   async getAllProducts(filters = {}, options = {}) {
@@ -179,15 +86,17 @@ class ProductService {
     }
 
     const productImageFiles = (files || []).filter((file) => file.fieldname === 'images');
-    const images = await this.uploadImages(productImageFiles);
+    const images = await ProductMediaService.uploadImages(productImageFiles);
 
     if (!parsedVariants || parsedVariants.length === 0) {
-      parsedVariants = this.buildDefaultVariant({ price, quantity, images });
+      parsedVariants = ProductVariantService.buildDefaultVariant({ price, quantity, images });
     } else {
-      parsedVariants = await this.attachVariantImages(parsedVariants, files);
+      parsedVariants = await ProductVariantService.attachVariantImages(parsedVariants, files, (groupFiles) =>
+        ProductMediaService.uploadImages(groupFiles)
+      );
     }
-    const aggregate = this.calculateAggregateFromVariants(parsedVariants, { price, quantity });
-    const representativeImages = this.extractRepresentativeImages(parsedVariants, images);
+    const aggregate = ProductVariantService.calculateAggregateFromVariants(parsedVariants, { price, quantity });
+    const representativeImages = ProductVariantService.extractRepresentativeImages(parsedVariants, images);
 
     const product = await Product.create({
       name,
@@ -221,7 +130,7 @@ class ProductService {
 
     if (files?.length > 0) {
       const productImageFiles = files.filter((file) => file.fieldname === 'images');
-      const newImages = await this.uploadImages(productImageFiles);
+      const newImages = await ProductMediaService.uploadImages(productImageFiles);
       product.images = [...(product.images || []), ...newImages];
     }
 
@@ -233,24 +142,26 @@ class ProductService {
     if (isActive !== undefined) product.isActive = isActive;
     if (specifications !== undefined) product.specifications = parsedSpecifications;
     if (variants !== undefined) {
-      product.variants = await this.attachVariantImages(parsedVariants, files);
+      product.variants = await ProductVariantService.attachVariantImages(parsedVariants, files, (groupFiles) =>
+        ProductMediaService.uploadImages(groupFiles)
+      );
     }
 
     if ((!product.variants || product.variants.length === 0) && (price !== undefined || quantity !== undefined)) {
-      product.variants = this.buildDefaultVariant({
+      product.variants = ProductVariantService.buildDefaultVariant({
         price: price !== undefined ? price : product.price,
         quantity: quantity !== undefined ? quantity : product.quantity,
         images: product.images,
       });
     }
 
-    const aggregate = this.calculateAggregateFromVariants(product.variants, {
+    const aggregate = ProductVariantService.calculateAggregateFromVariants(product.variants, {
       price: price !== undefined ? price : product.price,
       quantity: quantity !== undefined ? quantity : product.quantity,
     });
     product.price = aggregate.price;
     product.quantity = aggregate.quantity;
-    product.images = this.extractRepresentativeImages(product.variants, product.images);
+    product.images = ProductVariantService.extractRepresentativeImages(product.variants, product.images);
 
     await product.save();
 
@@ -317,80 +228,6 @@ class ProductService {
     return where;
   }
 
-  async uploadImages(files) {
-    if (!files?.length) return [];
-
-    const cloudinary = require('cloudinary').v2;
-    const images = [];
-
-    for (const file of files) {
-      try {
-        const result = await new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: 'ecommerce/products', resource_type: 'auto' },
-            (error, response) => (error ? reject(error) : resolve(response))
-          );
-          stream.end(file.buffer);
-        });
-
-        images.push({ url: result.secure_url, publicId: result.public_id });
-      } catch (error) {
-        await Promise.all(images.map((img) => deleteImage(img.publicId).catch(() => {})));
-        throw new Error(`Image upload failed: ${error.message}`);
-      }
-    }
-
-    return images;
-  }
-
-  extractRepresentativeImages(variants = [], fallbackImages = []) {
-    if (!Array.isArray(variants) || variants.length === 0) {
-      return Array.isArray(fallbackImages) ? fallbackImages : [];
-    }
-
-    const sourceVariant =
-      variants.find((variant) => Array.isArray(variant.images) && variant.images.length > 0) || null;
-
-    if (!sourceVariant) {
-      return Array.isArray(fallbackImages) ? fallbackImages : [];
-    }
-
-    return sourceVariant.images.slice(0, 4);
-  }
-
-  async attachVariantImages(variants = [], files = []) {
-    if (!Array.isArray(variants)) return [];
-
-    const groupedFiles = new Map();
-    (files || []).forEach((file) => {
-      if (!String(file.fieldname || '').startsWith('variantImages:')) return;
-      const key = String(file.fieldname).replace('variantImages:', '').trim();
-      if (!key) return;
-      const bucket = groupedFiles.get(key) || [];
-      bucket.push(file);
-      groupedFiles.set(key, bucket);
-    });
-
-    const uploadedByKey = new Map();
-    const normalized = [];
-    for (const variant of variants) {
-      const key = variant.clientKey || variant._id?.toString?.() || '';
-      const next = { ...variant };
-      if (key && groupedFiles.has(key)) {
-        if (!uploadedByKey.has(key)) {
-          const uploadedImages = await this.uploadImages(groupedFiles.get(key));
-          uploadedByKey.set(key, uploadedImages);
-        }
-        next.images = uploadedByKey.get(key);
-      } else if (!Array.isArray(next.images)) {
-        next.images = [];
-      }
-      delete next.clientKey;
-      normalized.push(next);
-    }
-
-    return normalized;
-  }
 }
 
 module.exports = new ProductService();

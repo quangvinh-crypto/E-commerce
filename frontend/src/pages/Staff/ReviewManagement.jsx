@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { EyeOff, Eye, RefreshCw, Search, MessageSquare, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import reviewService from '../../services/reviewService';
@@ -14,11 +14,7 @@ const ReviewManagement = () => {
   });
   const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
 
-  useEffect(() => {
-    fetchReviews();
-  }, [filters]);
-
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
@@ -33,7 +29,11 @@ const ReviewManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
 
   const handleVisibility = async (reviewId, nextVisibility) => {
     try {

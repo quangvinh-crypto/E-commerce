@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Link } from 'react-router-dom';
 import { 
-  Search, Filter, Grid, List, Plus, Edit2, Trash2, Eye, 
+  Search, Grid, List, Plus, Edit2, Trash2, Eye, 
   Package, AlertTriangle, CheckCircle, XCircle, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Eye, Package, Truck, CheckCircle, XCircle, Clock, RefreshCw, X } from 'lucide-react';
 import orderService from '../../services/orderService';
 import toast from 'react-hot-toast';
@@ -10,11 +10,7 @@ const OrderManagement = () => {
   const [filters, setFilters] = useState({ status: '', paymentStatus: '', page: 1 });
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
 
-  useEffect(() => {
-    fetchOrders();
-  }, [filters]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const params = { ...filters, limit: 10 };
@@ -28,7 +24,11 @@ const OrderManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleUpdateStatus = async (orderId, status) => {
     try {

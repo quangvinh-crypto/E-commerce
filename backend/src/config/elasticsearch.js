@@ -1,3 +1,5 @@
+// Deprecated legacy OpenSearch connector.
+// Search runtime now uses MongoDB Atlas Search through SearchService.
 const { Client } = require('@opensearch-project/opensearch');
 
 let esClient = null;
