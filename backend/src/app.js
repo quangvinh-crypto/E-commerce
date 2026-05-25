@@ -6,7 +6,6 @@ const passport = require('passport');
 require('dotenv').config();
 
 const { connectDB, mongoose } = require('./config/database');
-const { connectElasticsearch } = require('./config/elasticsearch');
 const { connectRedis, disconnectRedis, isRedisConnected } = require('./config/redis');
 const errorHandler = require('./middleware/errorHandler');
 const routes = require('./routes');
@@ -18,9 +17,6 @@ require('./models');
 require('./config/passport');
 
 const app = express();
-
-// Connect to database
-connectDB();
 
 // CORS configuration
 const corsOptions = {
@@ -86,15 +82,12 @@ const PORT = process.env.PORT || 5000;
 // Graceful shutdown handler
 const gracefulShutdown = async (signal) => {
   console.log(`\n${signal} received. Shutting down gracefully...`);
-  
-  const { disconnectElasticsearch } = require('./config/elasticsearch');
-  
-  await disconnectElasticsearch();
+
   await disconnectRedis();
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
   }
-  
+
   console.log('All connections closed. Exiting...');
   process.exit(0);
 };
@@ -104,21 +97,20 @@ const startServer = async () => {
   try {
     console.log('MongoDB models initialized');
 
+    // Wait for DB connection before any seed or search sync work.
+    await connectDB();
+
     const SeedService = require('./services/SeedService');
     await SeedService.ensureRootAdmin();
 
     // Connect to Redis cache (optional)
     await connectRedis();
 
-    // Connect to OpenSearch
-    const esConnected = await connectElasticsearch();
-    
-    // Initialize search index if connected
-    if (esConnected) {
-      const SearchService = require('./services/SearchService');
-      await SearchService.initIndex();
-      await SearchService.bulkIndexProducts();
-    }
+    const SearchService = require('./services/SearchService');
+
+    // OpenSearch startup is disabled. Search now runs through MongoDB Atlas Search
+    // and these calls only keep the denormalized search fields in sync.
+    await SearchService.initIndex();
 
     const server = app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

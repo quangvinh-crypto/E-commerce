@@ -11,7 +11,7 @@ Kien truc layer:
 - `services`: xu ly business logic.
 - `repositories`: thao tac du lieu chuyen biet (hien tai co user repository).
 - `models`: schema Mongoose.
-- `config`: ket noi DB, Redis, OpenSearch, Cloudinary, Passport.
+- `config`: ket noi DB, Redis, MongoDB Atlas Search, Cloudinary, Passport.
 
 ## Authentication
 - JWT cho login thong thuong.
@@ -100,7 +100,7 @@ Base URL: `/api`
 2. Tao `.env` tu `.env.example`
 3. Chay MongoDB
 4. (Tuy chon) Cau hinh Redis de bat cache API
-5. (Tuy chon) Cau hinh OpenSearch de bat search index
+5. Cau hinh Atlas Search index trong MongoDB Atlas
 6. Chay dev: `npm run dev`
 
 ## Environment Variables
@@ -112,7 +112,7 @@ Base URL: `/api`
 - `REDIS_URL` (uu tien) hoac `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD`, `REDIS_TLS`
 - `REDIS_CACHE_ENABLED`, `REDIS_DEFAULT_TTL`, `REDIS_KEY_PREFIX`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`
-- `OPENSEARCH_NODE`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`
+- `ATLAS_SEARCH_INDEX`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_BASE_URL`, `VNPAY_RETURN_URL`
 - `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_PASSWORD`, `ROOT_ADMIN_NAME`

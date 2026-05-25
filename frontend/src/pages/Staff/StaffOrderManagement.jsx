@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Eye, Package, Truck, CheckCircle, XCircle, Clock, RefreshCw, Search,
-  Printer, Download, Filter, Calendar, Phone, MapPin, User, CreditCard,
+  Printer, Download, Phone, MapPin, User, CreditCard,
   ChevronDown, ChevronUp, X
 } from 'lucide-react';
 import orderService from '../../services/orderService';
@@ -25,11 +25,7 @@ const StaffOrderManagement = () => {
   const [expandedStats, setExpandedStats] = useState(true);
   const invoiceRef = useRef(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [filters]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const params = { ...filters, limit: 10 };
@@ -43,7 +39,11 @@ const StaffOrderManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const handleUpdateStatus = async (orderId, status) => {
     try {
